@@ -1,4 +1,4 @@
-# Guía de Instalación - Korbytes Payments
+# Guía de Instalación - Korozcolt Payments
 
 Esta guía te ayudará a instalar y configurar el package de pagos en tu proyecto Laravel.
 
@@ -13,7 +13,7 @@ Esta guía te ayudará a instalar y configurar el package de pagos en tu proyect
 ### Opción 1: Desde Packagist (Recomendado para producción)
 
 ```bash
-composer require korbytes/payments
+composer require korozcolt/payments
 ```
 
 ### Opción 2: Desde repositorio Git
@@ -25,11 +25,11 @@ Agrega el repositorio a tu `composer.json`:
     "repositories": [
         {
             "type": "vcs",
-            "url": "https://github.com/korbytes/payments.git"
+            "url": "https://github.com/korozcolt/payments.git"
         }
     ],
     "require": {
-        "korbytes/payments": "^1.0"
+        "korozcolt/payments": "^1.0"
     }
 }
 ```
@@ -37,7 +37,7 @@ Agrega el repositorio a tu `composer.json`:
 Luego ejecuta:
 
 ```bash
-composer update korbytes/payments
+composer update korozcolt/payments
 ```
 
 ### Opción 3: Desarrollo local (Path Repository)
@@ -49,14 +49,14 @@ Para desarrollo local, coloca el package en una carpeta y referéncialo:
     "repositories": [
         {
             "type": "path",
-            "url": "./packages/korbytes/payments",
+            "url": "./packages/korozcolt/payments",
             "options": {
                 "symlink": true
             }
         }
     ],
     "require": {
-        "korbytes/payments": "@dev"
+        "korozcolt/payments": "@dev"
     }
 }
 ```

@@ -1,5 +1,5 @@
 {
-    "name": "korbytes/payments",
+    "name": "korozcolt/payments",
     "description": "A payment gateway package for Laravel supporting Wompi, MercadoPago, and ePayco. Designed for Colombian and Latin American markets.",
     "keywords": [
         "laravel",
@@ -14,16 +14,16 @@
     ],
     "license": "MIT",
     "type": "library",
-    "homepage": "https://github.com/korbytes/payments",
+    "homepage": "https://github.com/korozcolt/payments",
     "support": {
-        "issues": "https://github.com/korbytes/payments/issues",
-        "source": "https://github.com/korbytes/payments"
+        "issues": "https://github.com/korozcolt/payments/issues",
+        "source": "https://github.com/korozcolt/payments"
     },
     "authors": [
         {
-            "name": "Korbytes",
-            "email": "dev@korbytes.com",
-            "homepage": "https://korbytes.com"
+            "name": "Korozcolt",
+            "email": "dev@korozcolt.com",
+            "homepage": "https://github.com/korozcolt"
         }
     ],
     "require": {

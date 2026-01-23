@@ -1,4 +1,4 @@
-# Guía de Uso - Korbytes Payments
+# Guía de Uso - Korozcolt Payments
 
 ## Conceptos Básicos
 

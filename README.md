@@ -1,8 +1,8 @@
-# Korbytes Payments
+# Korozcolt Payments
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/korbytes/payments.svg?style=flat-square)](https://packagist.org/packages/korbytes/payments)
-[![Total Downloads](https://img.shields.io/packagist/dt/korbytes/payments.svg?style=flat-square)](https://packagist.org/packages/korbytes/payments)
-[![License](https://img.shields.io/packagist/l/korbytes/payments.svg?style=flat-square)](https://packagist.org/packages/korbytes/payments)
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/korozcolt/payments.svg?style=flat-square)](https://packagist.org/packages/korozcolt/payments)
+[![Total Downloads](https://img.shields.io/packagist/dt/korozcolt/payments.svg?style=flat-square)](https://packagist.org/packages/korozcolt/payments)
+[![License](https://img.shields.io/packagist/l/korozcolt/payments.svg?style=flat-square)](https://packagist.org/packages/korozcolt/payments)
 
 A unified payment gateway package for Laravel supporting **Wompi**, **MercadoPago**, and **ePayco**. Designed for Colombian and Latin American markets.
 
@@ -32,7 +32,7 @@ A unified payment gateway package for Laravel supporting **Wompi**, **MercadoPag
 ## Installation
 
 ```bash
-composer require korbytes/payments
+composer require korozcolt/payments
 ```
 
 Publish the configuration:
@@ -273,11 +273,11 @@ composer test
 
 ## Security
 
-If you discover any security-related issues, please email dev@korbytes.com instead of using the issue tracker.
+If you discover any security-related issues, please open an issue on the [GitHub repository](https://github.com/korozcolt/payments/issues).
 
 ## Credits
 
-- [Korbytes](https://korbytes.com)
+- [Korozcolt](https://github.com/korozcolt)
 - [All Contributors](../../contributors)
 
 ## License
