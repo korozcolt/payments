@@ -9,7 +9,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
+use Korbytes\Payments\DTOs\PlanData;
+use Korbytes\Payments\DTOs\PlanResult;
 use Korbytes\Payments\DTOs\RefundResult;
+use Korbytes\Payments\DTOs\SubscriptionData;
+use Korbytes\Payments\DTOs\SubscriptionResult;
 use Korbytes\Payments\DTOs\WebhookResult;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Enums\PaymentStatus;
@@ -19,6 +23,7 @@ use Korbytes\Payments\Events\PaymentRejected;
 use Korbytes\Payments\Events\WebhookReceived;
 use Korbytes\Payments\Exceptions\InvalidWebhookSignatureException;
 use Korbytes\Payments\Models\PaymentTransaction;
+use Korbytes\Payments\Models\Subscription;
 
 /**
  * ePayco Payment Driver Implementation.
@@ -440,6 +445,51 @@ class EpaycoDriver extends AbstractDriver
             .'via ePayco\'s API, but the endpoint is not publicly documented — verify it in your ePayco '
             .'dashboard/support before automating it. PSE and cash payments can never be reversed via API '
             .'and must always be refunded manually through the ePayco dashboard.',
+        );
+    }
+
+    /**
+     * ePayco does have a recurring-billing product (Plan + Customer +
+     * Subscription, via the official epayco-php SDK), but this package does
+     * NOT implement it: we could not verify — from public documentation,
+     * the SDK's source, or a Postman collection someone shared — whether
+     * ePayco auto-bills each cycle or requires the merchant to call
+     * subscriptions->charge() manually. Shipping either assumption wrong
+     * risks silently-uncollected revenue at best and double-charging a
+     * customer at worst, so this is deliberately left unimplemented until
+     * that's confirmed against a real ePayco sandbox account.
+     *
+     * @see https://docs.epayco.com/docs/planes
+     * @see https://github.com/epayco/epayco-php
+     */
+    public function createPlan(PlanData $data): PlanResult
+    {
+        return PlanResult::notSupported(
+            'ePayco subscriptions are not implemented in this package — its recurring billing behavior '
+            .'(automatic vs. manual per-cycle charging) could not be verified from public documentation. '
+            .'Verify it against a real ePayco account before implementing.',
+        );
+    }
+
+    public function createSubscription(SubscriptionData $data): SubscriptionResult
+    {
+        return SubscriptionResult::notSupported(
+            'ePayco subscriptions are not implemented in this package — see createPlan() for why.',
+        );
+    }
+
+    public function cancelSubscription(Subscription $subscription): SubscriptionResult
+    {
+        return SubscriptionResult::notSupported(
+            'ePayco subscriptions are not implemented in this package — see createPlan() for why.',
+        );
+    }
+
+    public function chargeSubscriptionCycle(Subscription $subscription): PaymentResult
+    {
+        return PaymentResult::failed(
+            errorCode: 'SUBSCRIPTIONS_NOT_SUPPORTED',
+            errorMessage: 'ePayco subscriptions are not implemented in this package — see createPlan() for why.',
         );
     }
 

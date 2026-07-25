@@ -9,19 +9,33 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
+use Korbytes\Payments\DTOs\PlanData;
+use Korbytes\Payments\DTOs\PlanResult;
 use Korbytes\Payments\DTOs\RefundResult;
+use Korbytes\Payments\DTOs\SubscriptionData;
+use Korbytes\Payments\DTOs\SubscriptionResult;
 use Korbytes\Payments\DTOs\WebhookResult;
+use Korbytes\Payments\Enums\BillingInterval;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Enums\PaymentStatus;
+use Korbytes\Payments\Enums\SubscriptionStatus;
 use Korbytes\Payments\Events\PaymentApproved;
 use Korbytes\Payments\Events\PaymentCreated;
 use Korbytes\Payments\Events\PaymentRefunded;
 use Korbytes\Payments\Events\PaymentRejected;
+use Korbytes\Payments\Events\SubscriptionCancelled;
+use Korbytes\Payments\Events\SubscriptionChargeFailed;
+use Korbytes\Payments\Events\SubscriptionChargeSucceeded;
+use Korbytes\Payments\Events\SubscriptionCreated;
 use Korbytes\Payments\Events\WebhookReceived;
 use Korbytes\Payments\Exceptions\InvalidWebhookSignatureException;
 use Korbytes\Payments\Models\PaymentTransaction;
+use Korbytes\Payments\Models\Subscription;
+use Korbytes\Payments\Models\SubscriptionPlan;
 use MercadoPago\Client\Payment\PaymentClient;
 use MercadoPago\Client\Payment\PaymentRefundClient;
+use MercadoPago\Client\PreApproval\PreApprovalClient;
+use MercadoPago\Client\PreApprovalPlan\PreApprovalPlanClient;
 use MercadoPago\Client\Preference\PreferenceClient;
 use MercadoPago\MercadoPagoConfig;
 
@@ -231,6 +245,10 @@ class MercadoPagoDriver extends AbstractDriver
 
         $type = $payload['type'] ?? $payload['topic'] ?? null;
         $dataId = $payload['data']['id'] ?? $payload['id'] ?? null;
+
+        if ($type === 'subscription_authorized_payment') {
+            return $this->processSubscriptionChargeWebhook($dataId, $payload);
+        }
 
         if (! in_array($type, ['payment', 'payment.created', 'payment.updated'])) {
             $this->log('debug', 'Ignoring non-payment webhook', ['type' => $type]);
@@ -518,6 +536,316 @@ class MercadoPagoDriver extends AbstractDriver
                 errorMessage: $e->getMessage(),
             );
         }
+    }
+
+    /**
+     * MercadoPago has a full native recurring-billing engine ("Suscripciones"
+     * / PreApproval Plans) — it bills each cycle automatically once a
+     * subscription is authorized.
+     *
+     * @see https://www.mercadopago.com.co/developers/es/docs/subscriptions/overview
+     */
+    public function createPlan(PlanData $data): PlanResult
+    {
+        $this->configureSdk();
+        $planClient = new PreApprovalPlanClient;
+
+        try {
+            $mpPlan = $planClient->create([
+                'reason' => $data->name,
+                'auto_recurring' => $this->toAutoRecurring($data->interval, $data->intervalCount, $data->amount, $data->currency, $data->trialDays),
+                'back_url' => config('payments.urls.return'),
+            ]);
+        } catch (\Exception $e) {
+            $this->log('error', 'Failed to create subscription plan', ['error' => $e->getMessage()]);
+
+            return PlanResult::failed(null, 'API_ERROR', $e->getMessage());
+        }
+
+        $plan = SubscriptionPlan::create([
+            'provider' => PaymentProvider::MercadoPago,
+            'provider_plan_id' => $mpPlan->id,
+            'name' => $data->name,
+            'amount' => $data->amount,
+            'currency' => $data->currency,
+            'interval' => $data->interval,
+            'interval_count' => $data->intervalCount,
+            'trial_days' => $data->trialDays,
+            'metadata' => $data->metadata,
+        ]);
+
+        return PlanResult::success($plan);
+    }
+
+    /**
+     * Subscribes a customer via MercadoPago's `preapproval` object, using an
+     * already-tokenized card ($data->paymentToken = card_token_id) so the
+     * subscription is authorized immediately without a checkout redirect.
+     */
+    public function createSubscription(SubscriptionData $data): SubscriptionResult
+    {
+        if (! $data->plan->provider_plan_id) {
+            return SubscriptionResult::failed(
+                subscription: null,
+                errorCode: 'MISSING_PROVIDER_PLAN',
+                errorMessage: 'This plan was not created via the mercadopago driver (no provider_plan_id) — call createPlan() with it first.',
+            );
+        }
+
+        $this->configureSdk();
+        $preApprovalClient = new PreApprovalClient;
+
+        try {
+            $preapproval = $preApprovalClient->create([
+                'preapproval_plan_id' => $data->plan->provider_plan_id,
+                'payer_email' => $data->getCustomerEmail(),
+                'card_token_id' => $data->paymentToken,
+                'external_reference' => $data->referenceId,
+                'back_url' => config('payments.urls.return'),
+                'status' => 'authorized',
+            ]);
+        } catch (\Exception $e) {
+            $this->log('error', 'Failed to create subscription', ['error' => $e->getMessage()]);
+
+            return SubscriptionResult::failed(null, 'API_ERROR', $e->getMessage());
+        }
+
+        $subscription = Subscription::create([
+            'subscription_plan_id' => $data->plan->id,
+            'reference_id' => $data->referenceId,
+            'provider' => PaymentProvider::MercadoPago,
+            'provider_subscription_id' => $preapproval->id,
+            'customer_email' => $data->getCustomerEmail(),
+            'customer_name' => $data->getCustomerName(),
+            'customer_phone' => $data->getCustomerPhone(),
+            'status' => $this->mapPreapprovalStatus($preapproval->status),
+            'next_billing_date' => $preapproval->next_payment_date ? \Illuminate\Support\Carbon::parse($preapproval->next_payment_date) : null,
+            'started_at' => now(),
+            'metadata' => $data->metadata,
+            'provider_response' => ['id' => $preapproval->id, 'status' => $preapproval->status],
+        ]);
+
+        $result = SubscriptionResult::success($subscription);
+
+        SubscriptionCreated::dispatch($subscription, $result);
+
+        return $result;
+    }
+
+    public function cancelSubscription(Subscription $subscription): SubscriptionResult
+    {
+        if (! $subscription->provider_subscription_id) {
+            return SubscriptionResult::failed(
+                subscription: $subscription,
+                errorCode: 'NO_PROVIDER_ID',
+                errorMessage: 'No MercadoPago preapproval id stored for this subscription.',
+            );
+        }
+
+        $this->configureSdk();
+        $preApprovalClient = new PreApprovalClient;
+
+        try {
+            $preApprovalClient->update($subscription->provider_subscription_id, ['status' => 'cancelled']);
+        } catch (\Exception $e) {
+            $this->log('error', 'Failed to cancel subscription', ['error' => $e->getMessage()]);
+
+            return SubscriptionResult::failed($subscription, 'API_ERROR', $e->getMessage());
+        }
+
+        $subscription->update([
+            'status' => SubscriptionStatus::Cancelled,
+            'cancelled_at' => now(),
+            'next_billing_date' => null,
+        ]);
+
+        $result = SubscriptionResult::success($subscription->fresh());
+
+        SubscriptionCancelled::dispatch($subscription->fresh(), $result);
+
+        return $result;
+    }
+
+    /**
+     * MercadoPago bills subscriptions itself — there is no "charge this
+     * cycle now" endpoint in its API/SDK. This is not part of this
+     * package's own scheduler for MercadoPago (see
+     * config('payments.subscriptions.scheduled_providers')); recurring
+     * charges arrive via processWebhook()'s `subscription_authorized_payment`
+     * handling instead.
+     */
+    public function chargeSubscriptionCycle(Subscription $subscription): PaymentResult
+    {
+        return PaymentResult::failed(
+            errorCode: 'NOT_APPLICABLE',
+            errorMessage: 'MercadoPago bills subscriptions automatically via its own recurring engine — this '
+            .'method is not used for MercadoPago. Recurring charge results arrive via processWebhook() '
+            ."(type='subscription_authorized_payment'). Do not add 'mercadopago' to "
+            .'config(payments.subscriptions.scheduled_providers) or you risk double-charging customers.',
+        );
+    }
+
+    /**
+     * Handles MercadoPago's `subscription_authorized_payment` webhook — a
+     * recurring cycle charge billed automatically by MercadoPago's own
+     * engine. Creates a PaymentTransaction tagged with the matching
+     * Subscription, reusing the same infrastructure as one-shot payments.
+     *
+     * Best-effort: the exact webhook type/payload shape for subscription
+     * charges was not verified against a live MercadoPago sandbox — verify
+     * end-to-end before relying on it in production.
+     */
+    protected function processSubscriptionChargeWebhook(?string $paymentId, array $payload): WebhookResult
+    {
+        if (! $paymentId) {
+            $result = WebhookResult::failed(
+                transaction: null,
+                errorCode: 'MISSING_DATA_ID',
+                errorMessage: 'Missing data ID in subscription payment webhook payload',
+                rawPayload: $payload,
+            );
+
+            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+
+            return $result;
+        }
+
+        $this->configureSdk();
+        $paymentClient = new PaymentClient;
+
+        try {
+            $payment = $paymentClient->get((int) $paymentId);
+        } catch (\Exception $e) {
+            $result = WebhookResult::failed(
+                transaction: null,
+                errorCode: 'API_ERROR',
+                errorMessage: $e->getMessage(),
+                rawPayload: $payload,
+            );
+
+            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+
+            return $result;
+        }
+
+        $preapprovalId = $payload['data']['preapproval_id'] ?? null;
+
+        $subscription = $preapprovalId
+            ? Subscription::where('provider_subscription_id', $preapprovalId)->first()
+            : Subscription::where('reference_id', $payment->external_reference ?? '__none__')->first();
+
+        if (! $subscription) {
+            $result = WebhookResult::notFound((string) ($preapprovalId ?? $payment->external_reference ?? $paymentId), $payload);
+
+            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+
+            return $result;
+        }
+
+        $existing = PaymentTransaction::where('provider_transaction_id', (string) $payment->id)->first();
+
+        if ($existing) {
+            $result = WebhookResult::duplicate($existing, $payload);
+
+            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+
+            return $result;
+        }
+
+        $status = self::STATUS_MAP[$payment->status ?? 'pending'] ?? PaymentStatus::Pending;
+
+        $transaction = PaymentTransaction::create([
+            'subscription_id' => $subscription->id,
+            'reference_id' => $subscription->reference_id.'-CYCLE-'.now()->format('YmdHis'),
+            'provider' => PaymentProvider::MercadoPago,
+            'provider_transaction_id' => (string) $payment->id,
+            'amount' => (int) round(($payment->transaction_amount ?? 0) * 100),
+            'currency' => $payment->currency_id ?? $subscription->plan->currency,
+            'status' => $status,
+            'idempotency_key' => (string) Str::uuid(),
+            'webhook_payload' => $payload,
+            'webhook_received_at' => now(),
+            'webhook_attempts' => 1,
+            'initiated_at' => now(),
+            'completed_at' => $status->isFinal() ? now() : null,
+        ]);
+
+        $subscription->update([
+            'last_charged_at' => now(),
+            'failed_charge_attempts' => $status === PaymentStatus::Approved ? 0 : $subscription->failed_charge_attempts + 1,
+        ]);
+
+        $result = WebhookResult::success(
+            transaction: $transaction,
+            status: $status,
+            providerTransactionId: (string) $payment->id,
+            rawPayload: $payload,
+        );
+
+        WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+
+        $paymentResult = PaymentResult::success(
+            transaction: $transaction,
+            provider: PaymentProvider::MercadoPago,
+            widgetUrl: $this->getWidgetUrl(),
+            publicKey: $this->getPublicKey() ?? $this->getConfig('access_token'),
+            amountInCents: $transaction->amount,
+            currency: $transaction->currency,
+            reference: $transaction->reference_id,
+            signature: (string) $payment->id,
+        );
+
+        if ($status === PaymentStatus::Approved) {
+            SubscriptionChargeSucceeded::dispatch($subscription->fresh(), $paymentResult);
+        } else {
+            SubscriptionChargeFailed::dispatch($subscription->fresh(), $paymentResult);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Map a plan's interval/count to MercadoPago's auto_recurring shape.
+     * MercadoPago's frequency_type only supports 'days' and 'months', so
+     * weeks/years are expressed as multiples of those.
+     */
+    protected function toAutoRecurring(BillingInterval $interval, int $count, int $amount, string $currency, ?int $trialDays): array
+    {
+        [$frequency, $frequencyType] = match ($interval) {
+            BillingInterval::Day => [$count, 'days'],
+            BillingInterval::Week => [$count * 7, 'days'],
+            BillingInterval::Month => [$count, 'months'],
+            BillingInterval::Year => [$count * 12, 'months'],
+        };
+
+        $autoRecurring = [
+            'frequency' => $frequency,
+            'frequency_type' => $frequencyType,
+            'transaction_amount' => $amount / 100,
+            'currency_id' => $currency,
+        ];
+
+        if ($trialDays) {
+            $autoRecurring['free_trial'] = [
+                'frequency' => $trialDays,
+                'frequency_type' => 'days',
+            ];
+        }
+
+        return $autoRecurring;
+    }
+
+    /**
+     * Map a MercadoPago preapproval status to our SubscriptionStatus.
+     */
+    protected function mapPreapprovalStatus(?string $status): SubscriptionStatus
+    {
+        return match ($status) {
+            'authorized' => SubscriptionStatus::Active,
+            'paused' => SubscriptionStatus::PastDue,
+            'cancelled' => SubscriptionStatus::Cancelled,
+            default => SubscriptionStatus::Trialing,
+        };
     }
 
     /**

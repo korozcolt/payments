@@ -7,9 +7,14 @@ namespace Korbytes\Payments\Contracts;
 use Illuminate\Http\Request;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
+use Korbytes\Payments\DTOs\PlanData;
+use Korbytes\Payments\DTOs\PlanResult;
 use Korbytes\Payments\DTOs\RefundResult;
+use Korbytes\Payments\DTOs\SubscriptionData;
+use Korbytes\Payments\DTOs\SubscriptionResult;
 use Korbytes\Payments\DTOs\WebhookResult;
 use Korbytes\Payments\Models\PaymentTransaction;
+use Korbytes\Payments\Models\Subscription;
 
 /**
  * Contract for payment drivers.
@@ -81,6 +86,41 @@ interface PaymentDriverInterface
      * @param  int|null  $amountInCents  Partial refund amount; null refunds the full transaction amount.
      */
     public function refund(PaymentTransaction $transaction, ?int $amountInCents = null): RefundResult;
+
+    /**
+     * Create a recurring billing plan.
+     *
+     * Real subscription support varies by provider — see USAGE.md. When a
+     * provider has no verified subscription support in this package, this
+     * returns PlanResult::notSupported() rather than throwing.
+     */
+    public function createPlan(PlanData $data): PlanResult;
+
+    /**
+     * Subscribe a customer to a plan using an already-tokenized payment
+     * method (this package never handles raw card data).
+     */
+    public function createSubscription(SubscriptionData $data): SubscriptionResult;
+
+    /**
+     * Cancel an active subscription.
+     */
+    public function cancelSubscription(Subscription $subscription): SubscriptionResult;
+
+    /**
+     * Charge one billing cycle for a subscription.
+     *
+     * For providers with their own recurring-billing engine (MercadoPago),
+     * this is not invoked by this package's own scheduler — cycles are
+     * billed by the provider and reflected via processWebhook(). It exists
+     * here for interface parity and manual/on-demand use, and returns a
+     * failed PaymentResult explaining that for such providers.
+     *
+     * For providers with no such engine (Wompi), this is the method the
+     * `payments:process-subscriptions` command calls to actually bill each
+     * due cycle.
+     */
+    public function chargeSubscriptionCycle(Subscription $subscription): PaymentResult;
 
     /**
      * Check if this driver is properly configured and ready to process payments.
