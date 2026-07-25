@@ -14,7 +14,7 @@ A unified payment gateway package for Laravel supporting **Wompi**, **MercadoPag
 - **Event-Driven** - Listen to payment events for business logic
 - **Webhook Handling** - Built-in webhook controller with signature verification
 - **Flexible Configuration** - Database or config-based credential management
-- **Laravel 10/11/12** - Full compatibility with recent Laravel versions
+- **Laravel 10/11/12/13** - Full compatibility with recent Laravel versions
 
 ## Supported Providers
 
@@ -29,7 +29,7 @@ Refund, subscription, and payout support genuinely differ per provider's own API
 ## Requirements
 
 - PHP 8.2+
-- Laravel 10, 11, or 12
+- Laravel 10, 11, 12, or 13
 
 ## Installation
 

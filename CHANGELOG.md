@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-07-25
+
+### Fixed
+- Widened `illuminate/contracts`, `illuminate/database`, `illuminate/http`, `illuminate/support`, and `illuminate/routing` constraints to include `^13.0`, and `orchestra/testbench` (dev) to include `^11.0`, so `composer require korozcolt/payments` no longer fails on Laravel 13 projects. Constraint-only change — not yet run against a live Laravel 13 test matrix; report any runtime incompatibility as an issue.
+
 ## [2.0.0] - 2026-07-25
 
 ### Changed
