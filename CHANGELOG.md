@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-25
+
+### Changed
+- **Breaking:** `PaymentDriverInterface` gained five new required methods (`refund()`, `createPlan()`, `createSubscription()`, `cancelSubscription()`, `chargeSubscriptionCycle()`). Any custom driver registered via `Payments::extend()` must implement them to remain compatible. Nothing changes for consumers who only use the built-in Wompi/MercadoPago/ePayco drivers.
+
 ### Added
 - Test coverage for `EpaycoDriver` and `MercadoPagoDriver` (previously only `WompiDriver` had tests): `charge()`, `verifyWebhookSignature()`, `processWebhook()`, `queryStatus()`.
 - Webhook signature and processing test coverage for `WompiDriver` (previously only had `charge()` tests).
