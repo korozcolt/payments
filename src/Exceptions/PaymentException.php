@@ -49,4 +49,17 @@ class PaymentException extends Exception
             context: $context,
         );
     }
+
+    /**
+     * The provider doesn't expose a (usable) refund API for this
+     * transaction/payment method — it must be handled manually.
+     */
+    public static function refundNotSupported(PaymentProvider $provider, string $reason): self
+    {
+        return new self(
+            message: "Refund not supported by {$provider->value}: {$reason}",
+            provider: $provider,
+            errorCode: 'REFUND_NOT_SUPPORTED',
+        );
+    }
 }

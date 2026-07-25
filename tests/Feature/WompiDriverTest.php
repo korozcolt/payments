@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Http;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\Enums\PaymentStatus;
 use Korbytes\Payments\Events\PaymentApproved;
+use Korbytes\Payments\Events\PaymentRefunded;
 use Korbytes\Payments\Events\PaymentRejected;
 use Korbytes\Payments\Exceptions\InvalidWebhookSignatureException;
 use Korbytes\Payments\Facades\Payments;
@@ -302,4 +303,77 @@ it('queries wompi payment status from the api and updates the transaction', func
     expect($result->success)->toBeTrue();
     expect($result->status)->toBe(PaymentStatus::Approved);
     expect($charge->transaction->fresh()->status)->toBe(PaymentStatus::Approved);
+});
+
+// refund()
+
+it('voids a wompi transaction and marks it as refunded when eligible', function () {
+    Event::fake([PaymentRefunded::class]);
+
+    Http::fake([
+        '*/transactions/*/void' => Http::response([
+            'data' => ['id' => 'wompi-void-1', 'status' => 'VOIDED'],
+        ], 200),
+    ]);
+
+    $charge = Payments::driver('wompi')->charge(new PaymentData(referenceId: 'ORDER-VOID-REFUND', amount: 50000));
+    $charge->transaction->update(['provider_transaction_id' => 'wompi-txn-void']);
+
+    $result = Payments::driver('wompi')->refund($charge->transaction->fresh());
+
+    expect($result->success)->toBeTrue();
+    expect($result->refundedAmountInCents)->toBe(50000);
+    expect($charge->transaction->fresh()->status)->toBe(PaymentStatus::Voided);
+    expect($charge->transaction->fresh()->refunded_amount)->toBe(50000);
+
+    Event::assertDispatched(PaymentRefunded::class);
+});
+
+it('reports a wompi refund as requiring manual handling when the void is not confirmed', function () {
+    Http::fake([
+        '*/transactions/*/void' => Http::response([
+            'data' => ['id' => 'wompi-void-2', 'status' => 'APPROVED'],
+        ], 200),
+    ]);
+
+    $charge = Payments::driver('wompi')->charge(new PaymentData(referenceId: 'ORDER-VOID-FAIL', amount: 50000));
+    $charge->transaction->update(['provider_transaction_id' => 'wompi-txn-settled']);
+
+    $result = Payments::driver('wompi')->refund($charge->transaction->fresh());
+
+    expect($result->success)->toBeFalse();
+    expect($result->errorCode)->toBe('MANUAL_REFUND_REQUIRED');
+});
+
+it('reports a wompi refund as requiring manual handling when the void request fails', function () {
+    Http::fake([
+        '*/transactions/*/void' => Http::response(['error' => ['message' => 'Transaction already settled']], 422),
+    ]);
+
+    $charge = Payments::driver('wompi')->charge(new PaymentData(referenceId: 'ORDER-VOID-ERROR', amount: 50000));
+    $charge->transaction->update(['provider_transaction_id' => 'wompi-txn-error']);
+
+    $result = Payments::driver('wompi')->refund($charge->transaction->fresh());
+
+    expect($result->success)->toBeFalse();
+    expect($result->errorCode)->toBe('MANUAL_REFUND_REQUIRED');
+});
+
+it('does not support partial refunds for wompi', function () {
+    $charge = Payments::driver('wompi')->charge(new PaymentData(referenceId: 'ORDER-VOID-PARTIAL', amount: 50000));
+    $charge->transaction->update(['provider_transaction_id' => 'wompi-txn-partial']);
+
+    $result = Payments::driver('wompi')->refund($charge->transaction->fresh(), amountInCents: 10000);
+
+    expect($result->success)->toBeFalse();
+    expect($result->errorCode)->toBe('REFUND_NOT_SUPPORTED');
+});
+
+it('fails wompi refund when transaction has no provider id', function () {
+    $charge = Payments::driver('wompi')->charge(new PaymentData(referenceId: 'ORDER-VOID-NO-ID', amount: 50000));
+
+    $result = Payments::driver('wompi')->refund($charge->transaction->fresh());
+
+    expect($result->success)->toBeFalse();
+    expect($result->errorCode)->toBe('NO_PROVIDER_ID');
 });

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Test coverage for `EpaycoDriver` and `MercadoPagoDriver` (previously only `WompiDriver` had tests): `charge()`, `verifyWebhookSignature()`, `processWebhook()`, `queryStatus()`.
+- Webhook signature and processing test coverage for `WompiDriver` (previously only had `charge()` tests).
+- `refund(PaymentTransaction $transaction, ?int $amountInCents = null): RefundResult` added to `PaymentDriverInterface` and implemented by all three drivers, plus `RefundResult` DTO and `PaymentRefunded` event.
+- `refunded_amount`, `refunded_at`, and `provider_refund_id` columns on `payment_transactions`.
+
+### Refund support — what's actually automated vs manual
+
+Refund capability is **not equivalent** across providers. See the "Reembolsos" section in USAGE.md for full detail; summary:
+
+- **MercadoPago**: fully automated, total or partial, via the official SDK's `PaymentRefundClient`. This is the only provider with real refund support in this release.
+- **Wompi**: **no post-settlement refund API exists**. Only `POST /transactions/{id}/void` is available, which cancels a card transaction before it settles, and only in full (no partial amounts). Once a transaction settles, refunding it is only possible manually via the Wompi dashboard — `refund()` reports this as `MANUAL_REFUND_REQUIRED` rather than pretending to succeed.
+- **ePayco**: **refund is not implemented in this package for any payment method**, including credit cards. ePayco's reversal API is documented to support credit card (TC) only — PSE and cash can never be reversed via API — but the endpoint's technical spec is gated behind an authenticated dashboard-only portal (`api.epayco.co`) that could not be verified while building this feature. `EpaycoDriver::refund()` always returns `RefundResult::notSupported()` and directs the merchant to ePayco's dashboard/support. Implementing real TC refund support is left for a follow-up once the endpoint contract is confirmed.
+
 ## [1.0.0] - 2024-01-23
 
 ### Added

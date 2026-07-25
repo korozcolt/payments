@@ -9,11 +9,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
+use Korbytes\Payments\DTOs\RefundResult;
 use Korbytes\Payments\DTOs\WebhookResult;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Enums\PaymentStatus;
 use Korbytes\Payments\Events\PaymentApproved;
 use Korbytes\Payments\Events\PaymentCreated;
+use Korbytes\Payments\Events\PaymentRefunded;
 use Korbytes\Payments\Events\PaymentRejected;
 use Korbytes\Payments\Events\WebhookReceived;
 use Korbytes\Payments\Exceptions\InvalidWebhookSignatureException;
@@ -340,6 +342,98 @@ class WompiDriver extends AbstractDriver
                 transaction: $transaction,
                 errorCode: 'API_ERROR',
                 errorMessage: $e->getMessage(),
+            );
+        }
+    }
+
+    /**
+     * Wompi does not expose a post-settlement refund API. The only reversal
+     * mechanism it offers is voiding a card transaction that hasn't been
+     * fully settled yet (certain pre-capture statuses only), and it's
+     * all-or-nothing — no partial amounts.
+     *
+     * If the void succeeds, the transaction is marked Voided (no money was
+     * actually captured, so "refunded" would be misleading). If Wompi
+     * rejects the void — most commonly because the transaction already
+     * settled — this returns a failed result telling the caller to refund
+     * manually via the Wompi dashboard.
+     *
+     * @see https://docs.wompi.co/en/docs/colombia/transacciones/
+     */
+    public function refund(PaymentTransaction $transaction, ?int $amountInCents = null): RefundResult
+    {
+        if ($amountInCents !== null && $amountInCents !== $transaction->amount) {
+            return RefundResult::notSupported(
+                $transaction,
+                'Wompi does not support partial refunds via API — voiding only cancels the full transaction, '
+                .'and only before it settles. Refund the difference manually via the Wompi dashboard.',
+            );
+        }
+
+        if (! $transaction->provider_transaction_id) {
+            return RefundResult::failed(
+                transaction: $transaction,
+                errorCode: 'NO_PROVIDER_ID',
+                errorMessage: 'No provider transaction ID available to void.',
+            );
+        }
+
+        $this->log('info', 'Attempting to void transaction (Wompi has no post-settlement refund API)', [
+            'transaction_id' => $transaction->id,
+        ]);
+
+        try {
+            $response = $this->makeRequest(
+                method: 'POST',
+                endpoint: "/transactions/{$transaction->provider_transaction_id}/void",
+                headers: [
+                    'Authorization' => 'Bearer '.$this->getConfig('private_key'),
+                ],
+            );
+
+            $data = $response['data'] ?? [];
+
+            if (($data['status'] ?? null) !== 'VOIDED') {
+                return RefundResult::failed(
+                    transaction: $transaction,
+                    errorCode: 'MANUAL_REFUND_REQUIRED',
+                    errorMessage: 'Wompi did not confirm the void. The transaction may already be settled and can only be refunded manually via the Wompi dashboard.',
+                    rawPayload: $response,
+                );
+            }
+
+            $transaction->update([
+                'status' => PaymentStatus::Voided,
+                'refunded_amount' => $transaction->amount,
+                'refunded_at' => now(),
+                'provider_response' => $response,
+            ]);
+
+            $this->log('info', 'Transaction voided successfully', [
+                'transaction_id' => $transaction->id,
+            ]);
+
+            $result = RefundResult::success(
+                transaction: $transaction->fresh(),
+                refundedAmountInCents: $transaction->amount,
+                providerRefundId: $data['id'] ?? $transaction->provider_transaction_id,
+                rawPayload: $response,
+            );
+
+            PaymentRefunded::dispatch($transaction->fresh(), $result);
+
+            return $result;
+
+        } catch (\Exception $e) {
+            $this->log('error', 'Failed to void transaction', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return RefundResult::failed(
+                transaction: $transaction,
+                errorCode: 'MANUAL_REFUND_REQUIRED',
+                errorMessage: 'Wompi void request failed ('.$e->getMessage().'). This transaction likely can only be refunded manually via the Wompi dashboard.',
             );
         }
     }

@@ -356,6 +356,59 @@ if ($result->success) {
 }
 ```
 
+## Reembolsos (Refunds)
+
+**El soporte de reembolsos vía API varía por proveedor — no asumas que todos funcionan igual.**
+
+| Proveedor    | Vía API                                                             | Manual                                    |
+|--------------|----------------------------------------------------------------------|--------------------------------------------|
+| MercadoPago  | Total y parcial, cualquier método de pago aprobado                  | —                                          |
+| Wompi        | Solo `void` de tarjeta **antes** de liquidarse (todo o nada, sin parcial) | Cualquier transacción ya liquidada |
+| ePayco       | **Ninguno implementado en este paquete** (ver nota abajo)            | Siempre — TC, PSE y efectivo             |
+
+```php
+use Korbytes\Payments\Facades\Payments;
+
+$transaction = PaymentTransaction::find($id);
+
+// Reembolso total
+$result = Payments::driver($transaction->provider->value)->refund($transaction);
+
+// Reembolso parcial (en centavos)
+$result = Payments::driver($transaction->provider->value)->refund($transaction, amountInCents: 20000);
+
+if ($result->success) {
+    echo "Reembolsado: " . $result->refundedAmountInCents;
+} elseif ($result->errorCode === 'REFUND_NOT_SUPPORTED') {
+    // El proveedor no expone (o no soporta) reembolso automático para este caso.
+    // $result->errorMessage explica por qué y qué hacer manualmente.
+} else {
+    // Falló la llamada a la API del proveedor (ver $result->errorMessage).
+}
+```
+
+`refund()` **nunca lanza excepción** para el caso "no soportado" — devuelve `RefundResult::notSupported()` (o `::failed()`) para que puedas tratarlo como un flujo normal en tu aplicación, no como un error inesperado.
+
+### MercadoPago
+
+Soporte completo vía `PaymentRefundClient` del SDK oficial. Requiere que la transacción esté en estado `Approved` y tenga `provider_transaction_id` (el ID de pago real, no el de preferencia). Actualiza la transacción a `Refunded`, guarda `refunded_amount`/`refunded_at`/`provider_refund_id` y dispara `PaymentRefunded`.
+
+### Wompi
+
+Wompi **no expone una API de reembolso post-liquidación**. Lo único disponible es `POST /transactions/{id}/void`, que cancela una transacción de tarjeta **antes** de que se liquide (ciertos estados previos únicamente), y es todo-o-nada — no admite montos parciales.
+
+- Si el `void` es aceptado: la transacción queda `Voided` (no `Refunded` — no se llegó a capturar dinero).
+- Si Wompi lo rechaza (lo más común: la transacción ya se liquidó): `refund()` devuelve `errorCode = 'MANUAL_REFUND_REQUIRED'`. Debes gestionar la devolución desde el dashboard de Wompi.
+- Si pides un monto parcial: siempre devuelve `REFUND_NOT_SUPPORTED` (Wompi no lo permite).
+
+### ePayco
+
+**No implementado en este paquete.** ePayco solo permite reversión automática vía API para pagos con **Tarjeta de Crédito (TC)**; PSE y efectivo son siempre manuales. Pero el endpoint técnico de reversión de ePayco está documentado detrás de un portal que requiere sesión autenticada (`api.epayco.co`), y no pudimos verificar su contrato (URL exacta, payload, respuesta) al momento de escribir este código.
+
+`EpaycoDriver::refund()` siempre devuelve `RefundResult::notSupported()` — para **cualquier** método de pago, incluyendo TC — con un mensaje indicando que la reversión debe hacerse desde el dashboard de ePayco o su centro de soporte.
+
+Si en el futuro se confirma el spec del endpoint de reversión de ePayco, se puede implementar soporte real para TC siguiendo el mismo patrón que `WompiDriver::refund()` o `MercadoPagoDriver::refund()`.
+
 ## Verificar Disponibilidad
 
 ```php

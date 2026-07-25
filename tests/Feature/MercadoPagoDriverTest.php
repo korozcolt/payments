@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Event;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\Enums\PaymentStatus;
 use Korbytes\Payments\Events\PaymentApproved;
+use Korbytes\Payments\Events\PaymentRefunded;
 use Korbytes\Payments\Events\PaymentRejected;
 use Korbytes\Payments\Exceptions\InvalidWebhookSignatureException;
 use Korbytes\Payments\Facades\Payments;
@@ -312,4 +313,75 @@ it('queries mercadopago payment status from the api and updates the transaction'
     expect($result->success)->toBeTrue();
     expect($result->status)->toBe(PaymentStatus::Approved);
     expect($charge->transaction->fresh()->status)->toBe(PaymentStatus::Approved);
+});
+
+// refund()
+
+it('refunds a mercadopago payment in full', function () {
+    Event::fake([PaymentRefunded::class]);
+
+    $this->fakeMp->respondTo('/checkout/preferences', 201, fakePreferenceResponse('PREF-REFUND'));
+    $charge = Payments::driver('mercadopago')->charge(new PaymentData(referenceId: 'ORDER-REFUND', amount: 50000));
+    $charge->transaction->update(['status' => PaymentStatus::Approved, 'provider_transaction_id' => '111']);
+
+    $this->fakeMp->respondTo('/v1/payments/111/refunds', 201, ['id' => 999]);
+
+    $result = Payments::driver('mercadopago')->refund($charge->transaction->fresh());
+
+    expect($result->success)->toBeTrue();
+    expect($result->refundedAmountInCents)->toBe(50000);
+    expect($result->providerRefundId)->toBe('999');
+    expect($charge->transaction->fresh()->status)->toBe(PaymentStatus::Refunded);
+    expect($charge->transaction->fresh()->refunded_amount)->toBe(50000);
+
+    Event::assertDispatched(PaymentRefunded::class);
+});
+
+it('refunds a mercadopago payment partially', function () {
+    $this->fakeMp->respondTo('/checkout/preferences', 201, fakePreferenceResponse('PREF-PARTIAL'));
+    $charge = Payments::driver('mercadopago')->charge(new PaymentData(referenceId: 'ORDER-PARTIAL-REFUND', amount: 50000));
+    $charge->transaction->update(['status' => PaymentStatus::Approved, 'provider_transaction_id' => '112']);
+
+    $this->fakeMp->respondTo('/v1/payments/112/refunds', 201, ['id' => 1000]);
+
+    $result = Payments::driver('mercadopago')->refund($charge->transaction->fresh(), amountInCents: 20000);
+
+    expect($result->success)->toBeTrue();
+    expect($result->refundedAmountInCents)->toBe(20000);
+    expect($charge->transaction->fresh()->refunded_amount)->toBe(20000);
+    expect($charge->transaction->fresh()->status)->toBe(PaymentStatus::Refunded);
+});
+
+it('rejects refund for a mercadopago transaction that is not approved', function () {
+    $this->fakeMp->respondTo('/checkout/preferences', 201, fakePreferenceResponse('PREF-PENDING'));
+    $charge = Payments::driver('mercadopago')->charge(new PaymentData(referenceId: 'ORDER-PENDING-REFUND', amount: 50000));
+
+    $result = Payments::driver('mercadopago')->refund($charge->transaction->fresh());
+
+    expect($result->success)->toBeFalse();
+    expect($result->errorCode)->toBe('NOT_REFUNDABLE');
+});
+
+it('fails mercadopago refund when transaction has no provider id', function () {
+    $this->fakeMp->respondTo('/checkout/preferences', 201, fakePreferenceResponse('PREF-NO-ID-REFUND'));
+    $charge = Payments::driver('mercadopago')->charge(new PaymentData(referenceId: 'ORDER-NO-ID-REFUND', amount: 50000));
+    $charge->transaction->update(['status' => PaymentStatus::Approved, 'provider_transaction_id' => null]);
+
+    $result = Payments::driver('mercadopago')->refund($charge->transaction->fresh());
+
+    expect($result->success)->toBeFalse();
+    expect($result->errorCode)->toBe('NO_PROVIDER_ID');
+});
+
+it('fails mercadopago refund when the api call errors', function () {
+    $this->fakeMp->respondTo('/checkout/preferences', 201, fakePreferenceResponse('PREF-ERROR-REFUND'));
+    $charge = Payments::driver('mercadopago')->charge(new PaymentData(referenceId: 'ORDER-ERROR-REFUND', amount: 50000));
+    $charge->transaction->update(['status' => PaymentStatus::Approved, 'provider_transaction_id' => '113']);
+
+    $this->fakeMp->failWith('/v1/payments/113/refunds', 400, ['message' => 'cannot refund']);
+
+    $result = Payments::driver('mercadopago')->refund($charge->transaction->fresh());
+
+    expect($result->success)->toBeFalse();
+    expect($result->errorCode)->toBe('API_ERROR');
 });
