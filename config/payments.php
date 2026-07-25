@@ -119,6 +119,45 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Payouts (third-party payments)
+    |--------------------------------------------------------------------------
+    |
+    | Separate credentials from `drivers` above — payouts use entirely
+    | different API keys (and, for Wompi, require a separate "Pagos a
+    | Terceros" module activation on your merchant account). Only Wompi and
+    | ePayco support payouts in this package; MercadoPago has no payouts
+    | API at all. See USAGE.md.
+    |
+    */
+    'payouts' => [
+        'wompi' => [
+            'sandbox' => env('WOMPI_PAYOUTS_SANDBOX', true),
+            // From Wompi's Payouts dashboard — NOT the same keys as the
+            // payment gateway above.
+            'api_key' => env('WOMPI_PAYOUTS_API_KEY'),
+            'user_principal_id' => env('WOMPI_PAYOUTS_USER_PRINCIPAL_ID'),
+            // The funding account to disburse from — see GET /accounts.
+            'account_id' => env('WOMPI_PAYOUTS_ACCOUNT_ID'),
+            'base_url' => [
+                'sandbox' => 'https://api.sandbox.payouts.wompi.co/v1',
+                'production' => 'https://api.payouts.wompi.co/v1',
+            ],
+        ],
+
+        'epayco' => [
+            // ePayco's Payouts product (apiflow.epayco.io) — assumed to use
+            // the same public/private key login flow as the rest of
+            // ePayco's platform. Not independently verified — see USAGE.md
+            // before relying on this in production.
+            'public_key' => env('EPAYCO_PAYOUTS_PUBLIC_KEY'),
+            'private_key' => env('EPAYCO_PAYOUTS_PRIVATE_KEY'),
+            'id_epayco' => env('EPAYCO_PAYOUTS_ID_EPAYCO'),
+            'base_url' => 'https://apiflow.epayco.io/payouts/api/v2',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Subscriptions
     |--------------------------------------------------------------------------
     |

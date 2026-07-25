@@ -1,7 +1,9 @@
 <?php
 
+use Korbytes\Payments\Contracts\PayoutDriverInterface;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Exceptions\DriverNotEnabledException;
+use Korbytes\Payments\Exceptions\PaymentException;
 use Korbytes\Payments\Facades\Payments;
 
 it('can get the default driver', function () {
@@ -66,4 +68,21 @@ it('can extend with custom driver', function () {
     $driver = Payments::driver('custom');
 
     expect($driver)->toBeInstanceOf(\Korbytes\Payments\Drivers\WompiDriver::class);
+});
+
+it('resolves a payout driver for a provider that supports payouts', function () {
+    $driver = Payments::payoutDriver('wompi');
+
+    expect($driver)->toBeInstanceOf(PayoutDriverInterface::class);
+});
+
+it('throws when resolving a payout driver for a provider with no payouts support', function () {
+    expect(fn () => Payments::payoutDriver('mercadopago'))
+        ->toThrow(PaymentException::class);
+
+    try {
+        Payments::payoutDriver('mercadopago');
+    } catch (PaymentException $e) {
+        expect($e->errorCode)->toBe('PAYOUTS_NOT_SUPPORTED');
+    }
 });

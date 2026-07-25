@@ -19,9 +19,25 @@ abstract class AbstractDriver implements PaymentDriverInterface
 {
     protected array $config = [];
 
+    /**
+     * Payout-specific credentials, separate from $config. Only populated
+     * for drivers implementing PayoutDriverInterface, via configurePayouts().
+     */
+    protected array $payoutConfig = [];
+
     public function configure(array $config): static
     {
         $this->config = $config;
+
+        return $this;
+    }
+
+    /**
+     * @see \Korbytes\Payments\Contracts\PayoutDriverInterface::configurePayouts()
+     */
+    public function configurePayouts(array $config): static
+    {
+        $this->payoutConfig = $config;
 
         return $this;
     }
@@ -106,6 +122,14 @@ abstract class AbstractDriver implements PaymentDriverInterface
     protected function getConfig(string $key, mixed $default = null): mixed
     {
         return $this->config[$key] ?? $default;
+    }
+
+    /**
+     * Get a payout-specific configuration value.
+     */
+    protected function getPayoutConfig(string $key, mixed $default = null): mixed
+    {
+        return $this->payoutConfig[$key] ?? $default;
     }
 
     /**

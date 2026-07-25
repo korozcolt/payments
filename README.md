@@ -18,13 +18,13 @@ A unified payment gateway package for Laravel supporting **Wompi**, **MercadoPag
 
 ## Supported Providers
 
-| Provider | Country | Methods | Automated Refunds | Subscriptions |
-|----------|---------|---------|--------------------|----------------|
-| **Wompi** | Colombia | Cards, PSE, Nequi, Bancolombia, Efecty | Card only, pre-settlement `void`, full amount only — otherwise manual | Yes — via tokenized "payment sources" + this package's own scheduler |
-| **MercadoPago** | Latin America | Cards, Bank Transfer, Cash | Yes — full or partial | Yes — native engine, bills itself automatically |
-| **ePayco** | Colombia | Cards, PSE, Efecty, Baloto | Not implemented — always manual (see USAGE.md) | Not implemented — unverified billing behavior (see USAGE.md) |
+| Provider | Country | Methods | Automated Refunds | Subscriptions | Payouts |
+|----------|---------|---------|--------------------|----------------|---------|
+| **Wompi** | Colombia | Cards, PSE, Nequi, Bancolombia, Efecty | Card only, pre-settlement `void`, full amount only — otherwise manual | Yes — via tokenized "payment sources" + this package's own scheduler | Yes — separate module/credentials, confirmed via official OpenAPI spec |
+| **MercadoPago** | Latin America | Cards, Bank Transfer, Cash | Yes — full or partial | Yes — native engine, bills itself automatically | Not available — no payouts API |
+| **ePayco** | Colombia | Cards, PSE, Efecty, Baloto | Not implemented — always manual (see USAGE.md) | Not implemented — unverified billing behavior (see USAGE.md) | Yes — endpoints confirmed, auth mechanism unverified (see USAGE.md) |
 
-Refund and subscription support genuinely differ per provider's own API — see [Reembolsos](USAGE.md#reembolsos-refunds) and [Suscripciones](USAGE.md#suscripciones-recurring-payments) in USAGE.md before relying on `refund()` or `createSubscription()`.
+Refund, subscription, and payout support genuinely differ per provider's own API — see [Reembolsos](USAGE.md#reembolsos-refunds), [Suscripciones](USAGE.md#suscripciones-recurring-payments), and [Payouts](USAGE.md#payouts-pagos-a-terceros) in USAGE.md before relying on `refund()`, `createSubscription()`, or `createPayout()`.
 
 ## Requirements
 
@@ -264,6 +264,25 @@ $result->errorMessage;          // Explains why, and what to do manually if appl
 ```
 
 `REFUND_NOT_SUPPORTED` and `MANUAL_REFUND_REQUIRED` are normal, expected outcomes for Wompi and ePayco in many cases — not exceptions. See [Reembolsos in USAGE.md](USAGE.md#reembolsos-refunds) for exactly what each provider supports.
+
+### Payouts (third-party payments)
+
+```php
+use Korbytes\Payments\Facades\Payments;
+
+$driver = Payments::payoutDriver('wompi'); // throws PaymentException if unsupported (e.g. mercadopago)
+
+$beneficiary = $driver->registerBeneficiary($payoutBeneficiaryData)->beneficiary;
+$result = $driver->createPayout(new \Korbytes\Payments\DTOs\PayoutData(
+    beneficiary: $beneficiary,
+    referenceId: 'FACTURA-123',
+    amount: 100000,
+));
+
+$driver->queryPayoutStatus($result->payout);
+```
+
+Payouts use their own `PayoutDriverInterface` (not part of the main charge/refund/subscription contract) and entirely separate credentials from the payment gateway — see [Payouts in USAGE.md](USAGE.md#payouts-pagos-a-terceros).
 
 ## Extending
 
