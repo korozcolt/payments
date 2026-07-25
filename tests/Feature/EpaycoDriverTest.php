@@ -298,3 +298,31 @@ it('fails queryStatus for epayco when transaction has no provider id', function 
     expect($result->success)->toBeFalse();
     expect($result->errorCode)->toBe('NO_PROVIDER_ID');
 });
+
+// refund()
+
+it('always reports refunds as not supported for epayco', function () {
+    $paymentData = new PaymentData(referenceId: 'ORDER-REFUND', amount: 50000);
+    $charge = Payments::driver('epayco')->charge($paymentData);
+    $charge->transaction->update(['status' => PaymentStatus::Approved]);
+
+    $result = Payments::driver('epayco')->refund($charge->transaction->fresh());
+
+    expect($result->success)->toBeFalse();
+    expect($result->errorCode)->toBe('REFUND_NOT_SUPPORTED');
+    expect($result->errorMessage)->toContain('manually');
+
+    // Refund not supported means the transaction is left untouched.
+    expect($charge->transaction->fresh()->status)->toBe(PaymentStatus::Approved);
+});
+
+it('does not change transaction status when a partial epayco refund is requested', function () {
+    $paymentData = new PaymentData(referenceId: 'ORDER-PARTIAL-REFUND', amount: 50000);
+    $charge = Payments::driver('epayco')->charge($paymentData);
+    $charge->transaction->update(['status' => PaymentStatus::Approved]);
+
+    $result = Payments::driver('epayco')->refund($charge->transaction->fresh(), amountInCents: 10000);
+
+    expect($result->success)->toBeFalse();
+    expect($result->errorCode)->toBe('REFUND_NOT_SUPPORTED');
+});

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
+use Korbytes\Payments\DTOs\RefundResult;
 use Korbytes\Payments\DTOs\WebhookResult;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Enums\PaymentStatus;
@@ -412,6 +413,34 @@ class EpaycoDriver extends AbstractDriver
                 errorMessage: $e->getMessage(),
             );
         }
+    }
+
+    /**
+     * ePayco only supports automated reversals for credit card (TC)
+     * payments, and the reversal service's endpoint/payload isn't publicly
+     * documented (it's gated behind their dashboard-only API portal). PSE
+     * and cash payments can never be reversed via API — ePayco requires the
+     * merchant to refund those manually.
+     *
+     * Until the reversal endpoint is confirmed and implemented, ALL ePayco
+     * refunds — regardless of payment method — must be handled manually
+     * through the ePayco merchant dashboard or their support channel.
+     *
+     * @see https://docs.epayco.com/docs/api
+     */
+    public function refund(PaymentTransaction $transaction, ?int $amountInCents = null): RefundResult
+    {
+        $this->log('info', 'Refund requested but not supported by this driver', [
+            'transaction_id' => $transaction->id,
+        ]);
+
+        return RefundResult::notSupported(
+            $transaction,
+            'ePayco refunds are not implemented in this package. Credit card (TC) payments can be reversed '
+            .'via ePayco\'s API, but the endpoint is not publicly documented — verify it in your ePayco '
+            .'dashboard/support before automating it. PSE and cash payments can never be reversed via API '
+            .'and must always be refunded manually through the ePayco dashboard.',
+        );
     }
 
     /**

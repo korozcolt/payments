@@ -18,11 +18,13 @@ A unified payment gateway package for Laravel supporting **Wompi**, **MercadoPag
 
 ## Supported Providers
 
-| Provider | Country | Methods |
-|----------|---------|---------|
-| **Wompi** | Colombia | Cards, PSE, Nequi, Bancolombia, Efecty |
-| **MercadoPago** | Latin America | Cards, Bank Transfer, Cash |
-| **ePayco** | Colombia | Cards, PSE, Efecty, Baloto |
+| Provider | Country | Methods | Automated Refunds |
+|----------|---------|---------|--------------------|
+| **Wompi** | Colombia | Cards, PSE, Nequi, Bancolombia, Efecty | Card only, pre-settlement `void`, full amount only — otherwise manual |
+| **MercadoPago** | Latin America | Cards, Bank Transfer, Cash | Yes — full or partial |
+| **ePayco** | Colombia | Cards, PSE, Efecty, Baloto | Not implemented — always manual (see USAGE.md) |
+
+Refund support genuinely differs per provider's own API — see [Reembolsos in USAGE.md](USAGE.md#reembolsos-refunds) before relying on `refund()`.
 
 ## Requirements
 
@@ -182,6 +184,7 @@ Configure these in your payment provider dashboards:
 | `PaymentCreated` | Payment intent created |
 | `PaymentApproved` | Payment approved by provider |
 | `PaymentRejected` | Payment rejected/failed |
+| `PaymentRefunded` | Payment successfully refunded via the provider's API (not dispatched for manual/unsupported refunds) |
 | `WebhookReceived` | Webhook received from provider |
 
 ## API Reference
@@ -242,6 +245,21 @@ $result->extra;             // Provider-specific data
 $result->errorCode;         // Error code (if failed)
 $result->errorMessage;      // Error message (if failed)
 ```
+
+### RefundResult DTO
+
+```php
+$result = Payments::driver($provider)->refund($transaction, amountInCents: null); // null = full refund
+
+$result->success;               // bool
+$result->transaction;           // PaymentTransaction model
+$result->refundedAmountInCents; // Amount actually refunded
+$result->providerRefundId;      // Provider's refund ID
+$result->errorCode;             // 'NOT_REFUNDABLE' | 'NO_PROVIDER_ID' | 'API_ERROR' | 'MANUAL_REFUND_REQUIRED' | 'REFUND_NOT_SUPPORTED'
+$result->errorMessage;          // Explains why, and what to do manually if applicable
+```
+
+`REFUND_NOT_SUPPORTED` and `MANUAL_REFUND_REQUIRED` are normal, expected outcomes for Wompi and ePayco in many cases — not exceptions. See [Reembolsos in USAGE.md](USAGE.md#reembolsos-refunds) for exactly what each provider supports.
 
 ## Extending
 

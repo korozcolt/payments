@@ -7,7 +7,9 @@ namespace Korbytes\Payments\Contracts;
 use Illuminate\Http\Request;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
+use Korbytes\Payments\DTOs\RefundResult;
 use Korbytes\Payments\DTOs\WebhookResult;
+use Korbytes\Payments\Models\PaymentTransaction;
 
 /**
  * Contract for payment drivers.
@@ -66,6 +68,19 @@ interface PaymentDriverInterface
      * Useful for reconciliation or when webhooks fail.
      */
     public function queryStatus(string $transactionId): WebhookResult;
+
+    /**
+     * Refund an approved payment, fully or partially.
+     *
+     * Automated refund support varies by provider and payment method — see
+     * each driver's implementation and USAGE.md. When the provider doesn't
+     * expose a usable refund API for this transaction, this returns
+     * RefundResult::notSupported() rather than throwing, so callers can
+     * handle "must be refunded manually" as a normal outcome.
+     *
+     * @param  int|null  $amountInCents  Partial refund amount; null refunds the full transaction amount.
+     */
+    public function refund(PaymentTransaction $transaction, ?int $amountInCents = null): RefundResult;
 
     /**
      * Check if this driver is properly configured and ready to process payments.

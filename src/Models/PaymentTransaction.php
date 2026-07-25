@@ -48,7 +48,9 @@ class PaymentTransaction extends Model
         'provider',
         'provider_transaction_id',
         'provider_reference',
+        'provider_refund_id',
         'amount',
+        'refunded_amount',
         'currency',
         'status',
         'idempotency_key',
@@ -62,6 +64,7 @@ class PaymentTransaction extends Model
         'metadata',
         'initiated_at',
         'completed_at',
+        'refunded_at',
     ];
 
     protected function casts(): array
@@ -69,6 +72,7 @@ class PaymentTransaction extends Model
         return [
             'provider' => PaymentProvider::class,
             'amount' => 'integer',
+            'refunded_amount' => 'integer',
             'status' => PaymentStatus::class,
             'webhook_received_at' => 'datetime',
             'webhook_attempts' => 'integer',
@@ -78,6 +82,7 @@ class PaymentTransaction extends Model
             'metadata' => 'array',
             'initiated_at' => 'datetime',
             'completed_at' => 'datetime',
+            'refunded_at' => 'datetime',
         ];
     }
 

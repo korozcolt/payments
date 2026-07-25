@@ -9,16 +9,19 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
+use Korbytes\Payments\DTOs\RefundResult;
 use Korbytes\Payments\DTOs\WebhookResult;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Enums\PaymentStatus;
 use Korbytes\Payments\Events\PaymentApproved;
 use Korbytes\Payments\Events\PaymentCreated;
+use Korbytes\Payments\Events\PaymentRefunded;
 use Korbytes\Payments\Events\PaymentRejected;
 use Korbytes\Payments\Events\WebhookReceived;
 use Korbytes\Payments\Exceptions\InvalidWebhookSignatureException;
 use Korbytes\Payments\Models\PaymentTransaction;
 use MercadoPago\Client\Payment\PaymentClient;
+use MercadoPago\Client\Payment\PaymentRefundClient;
 use MercadoPago\Client\Preference\PreferenceClient;
 use MercadoPago\MercadoPagoConfig;
 
@@ -434,6 +437,82 @@ class MercadoPagoDriver extends AbstractDriver
             ]);
 
             return WebhookResult::failed(
+                transaction: $transaction,
+                errorCode: 'API_ERROR',
+                errorMessage: $e->getMessage(),
+            );
+        }
+    }
+
+    /**
+     * MercadoPago fully supports refunds — total or partial — via its API
+     * for any approved payment, regardless of payment method.
+     *
+     * @see https://www.mercadopago.com.co/developers/es/reference/online-payments/checkout-api/refund-order/post
+     */
+    public function refund(PaymentTransaction $transaction, ?int $amountInCents = null): RefundResult
+    {
+        if ($transaction->status !== PaymentStatus::Approved) {
+            return RefundResult::failed(
+                transaction: $transaction,
+                errorCode: 'NOT_REFUNDABLE',
+                errorMessage: "Cannot refund a transaction with status '{$transaction->status->value}'; only approved payments can be refunded.",
+            );
+        }
+
+        if (! $transaction->provider_transaction_id) {
+            return RefundResult::failed(
+                transaction: $transaction,
+                errorCode: 'NO_PROVIDER_ID',
+                errorMessage: 'No provider transaction ID available to refund.',
+            );
+        }
+
+        $this->log('info', 'Refunding payment', [
+            'transaction_id' => $transaction->id,
+            'amount_in_cents' => $amountInCents,
+        ]);
+
+        $this->configureSdk();
+        $refundClient = new PaymentRefundClient;
+        $paymentId = (int) $transaction->provider_transaction_id;
+
+        try {
+            $refund = $amountInCents !== null
+                ? $refundClient->refund($paymentId, $amountInCents / 100)
+                : $refundClient->refundTotal($paymentId);
+
+            $refundedAmountInCents = $amountInCents ?? $transaction->amount;
+
+            $transaction->update([
+                'status' => PaymentStatus::Refunded,
+                'refunded_amount' => $refundedAmountInCents,
+                'refunded_at' => now(),
+                'provider_refund_id' => (string) $refund->id,
+            ]);
+
+            $this->log('info', 'Payment refunded successfully', [
+                'transaction_id' => $transaction->id,
+                'refund_id' => $refund->id,
+            ]);
+
+            $result = RefundResult::success(
+                transaction: $transaction->fresh(),
+                refundedAmountInCents: $refundedAmountInCents,
+                providerRefundId: (string) $refund->id,
+            );
+
+            PaymentRefunded::dispatch($transaction->fresh(), $result);
+
+            return $result;
+
+        } catch (\Exception $e) {
+            $this->log('error', 'Failed to refund payment', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return RefundResult::failed(
                 transaction: $transaction,
                 errorCode: 'API_ERROR',
                 errorMessage: $e->getMessage(),
