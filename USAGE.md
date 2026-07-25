@@ -495,6 +495,78 @@ Controla qué proveedores cobra este comando con `payments.subscriptions.schedul
 
 `createPlan()`, `createSubscription()`, `cancelSubscription()` y `chargeSubscriptionCycle()` de `EpaycoDriver` siempre devuelven `notSupported()` con este mismo motivo. Para implementarlo de verdad, primero hay que confirmar ese comportamiento contra una cuenta/sandbox real de ePayco.
 
+## Payouts (Pagos a Terceros)
+
+**Solo Wompi y ePayco soportan payouts en este paquete. MercadoPago no tiene API de payouts — su driver ni siquiera implementa `PayoutDriverInterface`.**
+
+Payouts es enviar dinero a un tercero (proveedor, empleado), lo opuesto a `charge()` (cobrarle a un cliente). Usa credenciales **completamente separadas** de las del gateway de pagos — no reutiliza `payments.drivers.*` — y en Wompi requiere activar un módulo aparte en el dashboard del comercio.
+
+```php
+use Korbytes\Payments\DTOs\PayoutBeneficiaryData;
+use Korbytes\Payments\DTOs\PayoutData;
+use Korbytes\Payments\Facades\Payments;
+
+// 1. Registrar el beneficiario (proveedor/empleado)
+$beneficiaryResult = Payments::payoutDriver('wompi')->registerBeneficiary(new PayoutBeneficiaryData(
+    name: 'Proveedor SAS',
+    legalIdType: 'NIT',
+    legalId: '900123456',
+    personType: 'JURIDICA',
+    bankCode: 'BANCOLOMBIA', // ver GET /banks de cada proveedor
+    accountType: 'AHORROS',
+    accountNumber: '1234567890',
+    category: 'providers', // 'providers' | 'payroll'
+    email: 'proveedor@example.com',
+));
+
+// 2. Enviar el pago
+$payoutResult = Payments::payoutDriver('wompi')->createPayout(new PayoutData(
+    beneficiary: $beneficiaryResult->beneficiary,
+    referenceId: 'FACTURA-123',
+    amount: 100000, // en centavos
+    description: 'Pago factura #123',
+));
+
+if ($payoutResult->success) {
+    $payout = $payoutResult->payout;
+}
+
+// 3. Consultar estado
+Payments::payoutDriver('wompi')->queryPayoutStatus($payoutResult->payout);
+```
+
+`Payments::payoutDriver($provider)` lanza `PaymentException` (`errorCode = 'PAYOUTS_NOT_SUPPORTED'`) si el proveedor no soporta payouts — por ejemplo, `Payments::payoutDriver('mercadopago')`.
+
+### Configuración
+
+```env
+# Wompi Payouts — credenciales separadas del gateway, requiere módulo activado
+WOMPI_PAYOUTS_API_KEY=
+WOMPI_PAYOUTS_USER_PRINCIPAL_ID=
+WOMPI_PAYOUTS_ACCOUNT_ID=       # cuenta de fondeo, ver GET /accounts
+
+# ePayco Payouts — también credenciales separadas
+EPAYCO_PAYOUTS_PUBLIC_KEY=
+EPAYCO_PAYOUTS_PRIVATE_KEY=
+EPAYCO_PAYOUTS_ID_EPAYCO=
+```
+
+### Wompi
+
+Soporte real y confirmado directamente contra el spec OpenAPI público de Wompi ([SwaggerHub](https://app.swaggerhub.com/apis-docs/wompi/Payouts/1.0.0)): `POST /payouts` (crear lote), `GET /payouts/{id}` (consultar), `GET /banks`, `GET /accounts`. Autenticación vía headers `x-api-key` + `user-principal-id` (no Bearer).
+
+- Wompi **no tiene un endpoint de registro de beneficiario** — los datos bancarios van inline en cada transacción del payout. `registerBeneficiary()` para Wompi solo crea un registro local reutilizable (no llama a la API).
+- Requiere `payments.payouts.wompi.account_id` configurado (la cuenta de fondeo desde la que sale el dinero) — sin eso, `createPayout()` devuelve `errorCode = 'MISSING_ACCOUNT_ID'`.
+- Requiere que el módulo "Pagos a Terceros" esté activado en tu cuenta comercial de Wompi — es un producto separado del gateway de pagos normal.
+
+### ePayco
+
+Basado en la documentación oficial confirmada (`flujo-de-pago-de-proveedores`, `flujo-de-pago-de-nómina`, `pagos-programados`, `ciclos-ach`): `POST /providers` o `POST /employees` (registrar beneficiario según `category`), `POST /payments/bulk` (crear pago), `POST /payments/generatePayment` (disparar dispersión), `POST /payments/findone` (consultar estado). Base: `apiflow.epayco.io/payouts/api/v2`.
+
+⚠️ **Una pieza no se pudo verificar: el mecanismo exacto de autenticación de esta API específica.** Se implementó reutilizando el mismo patrón confirmado que usa el resto de la plataforma de ePayco (login con `public_key`/`private_key` → token Bearer, igual que el SDK oficial `epayco-php`), pero no se confirmó que `apiflow.epayco.io` use exactamente ese mismo endpoint de login. Prueba esto en sandbox antes de producción — si el login falla, `registerBeneficiary()`/`createPayout()`/`queryPayoutStatus()` devuelven `errorCode = 'API_ERROR'` (fallo seguro, no hay riesgo de pago fantasma).
+
+Ten en cuenta además los **ciclos ACH**: transferencias a bancos distintos de Davivienda/Daviplata pasan por ventanas de proceso fijas (cortes a las 3pm significan que se reflejan hasta el siguiente día hábil) — no asumas que un payout se refleja de inmediato.
+
 ## Verificar Disponibilidad
 
 ```php

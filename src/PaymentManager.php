@@ -6,6 +6,7 @@ namespace Korbytes\Payments;
 
 use Illuminate\Support\Collection;
 use Korbytes\Payments\Contracts\PaymentDriverInterface;
+use Korbytes\Payments\Contracts\PayoutDriverInterface;
 use Korbytes\Payments\Drivers\EpaycoDriver;
 use Korbytes\Payments\Drivers\MercadoPagoDriver;
 use Korbytes\Payments\Drivers\WompiDriver;
@@ -74,6 +75,33 @@ class PaymentManager
     public function charge(PaymentData $paymentData): PaymentResult
     {
         return $this->driver()->charge($paymentData);
+    }
+
+    /**
+     * Get a driver that supports payouts (third-party disbursements).
+     *
+     * Not every driver supports this — MercadoPago has no payouts API at
+     * all, for example — so this throws when the resolved driver doesn't
+     * implement PayoutDriverInterface, rather than silently returning
+     * something that would fatal-error on first use.
+     *
+     * @throws PaymentException
+     */
+    public function payoutDriver(PaymentProvider|string|null $driver = null): PayoutDriverInterface
+    {
+        $driverName = $driver instanceof PaymentProvider
+            ? $driver->value
+            : ($driver ?? config('payments.default', 'wompi'));
+
+        $resolved = $this->driver($driverName);
+
+        if (! $resolved instanceof PayoutDriverInterface) {
+            throw PaymentException::payoutsNotSupported(PaymentProvider::from($driverName));
+        }
+
+        $resolved->configurePayouts(config("payments.payouts.{$driverName}", []));
+
+        return $resolved;
     }
 
     /**

@@ -6,9 +6,15 @@ namespace Korbytes\Payments\Drivers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Korbytes\Payments\Contracts\PayoutDriverInterface;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
+use Korbytes\Payments\DTOs\PayoutBeneficiaryData;
+use Korbytes\Payments\DTOs\PayoutBeneficiaryResult;
+use Korbytes\Payments\DTOs\PayoutData;
+use Korbytes\Payments\DTOs\PayoutResult;
 use Korbytes\Payments\DTOs\PlanData;
 use Korbytes\Payments\DTOs\PlanResult;
 use Korbytes\Payments\DTOs\RefundResult;
@@ -17,6 +23,7 @@ use Korbytes\Payments\DTOs\SubscriptionResult;
 use Korbytes\Payments\DTOs\WebhookResult;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Enums\PaymentStatus;
+use Korbytes\Payments\Enums\PayoutStatus;
 use Korbytes\Payments\Enums\SubscriptionStatus;
 use Korbytes\Payments\Events\PaymentApproved;
 use Korbytes\Payments\Events\PaymentCreated;
@@ -29,6 +36,8 @@ use Korbytes\Payments\Events\SubscriptionCreated;
 use Korbytes\Payments\Events\WebhookReceived;
 use Korbytes\Payments\Exceptions\InvalidWebhookSignatureException;
 use Korbytes\Payments\Models\PaymentTransaction;
+use Korbytes\Payments\Models\Payout;
+use Korbytes\Payments\Models\PayoutBeneficiary;
 use Korbytes\Payments\Models\Subscription;
 use Korbytes\Payments\Models\SubscriptionPlan;
 
@@ -38,8 +47,26 @@ use Korbytes\Payments\Models\SubscriptionPlan;
  * @see https://docs.wompi.co/docs/colombia/widget-checkout-web/
  * @see https://docs.wompi.co/docs/colombia/eventos/
  */
-class WompiDriver extends AbstractDriver
+class WompiDriver extends AbstractDriver implements PayoutDriverInterface
 {
+    /**
+     * Wompi Payouts transaction/batch statuses (from its OpenAPI spec) mapped
+     * to our own PayoutStatus.
+     *
+     * @see https://api.swaggerhub.com/apis/wompi/Payouts/1.0.0
+     */
+    protected const array PAYOUT_STATUS_MAP = [
+        'PENDING' => PayoutStatus::Pending,
+        'READY_TO_FILE' => PayoutStatus::Pending,
+        'ADDED_TO_FILE' => PayoutStatus::Pending,
+        'UNKNOWN' => PayoutStatus::Pending,
+        'PROCESSING' => PayoutStatus::Processing,
+        'APPROVED' => PayoutStatus::Completed,
+        'CANCELLED' => PayoutStatus::Rejected,
+        'REJECTED' => PayoutStatus::Rejected,
+        'FAILED' => PayoutStatus::Failed,
+    ];
+
     /**
      * Map Wompi transaction statuses to internal statuses.
      */
@@ -667,6 +694,196 @@ class WompiDriver extends AbstractDriver
         }
 
         return $result;
+    }
+
+    /**
+     * Wompi's Payouts API has no separate beneficiary-registration
+     * endpoint — bank details are sent inline with each payout transaction
+     * instead. This just keeps a local, reusable record so callers don't
+     * have to re-enter bank details for every payout.
+     *
+     * @see https://api.swaggerhub.com/apis/wompi/Payouts/1.0.0
+     */
+    public function registerBeneficiary(PayoutBeneficiaryData $data): PayoutBeneficiaryResult
+    {
+        $beneficiary = PayoutBeneficiary::create([
+            'provider' => PaymentProvider::Wompi,
+            'provider_beneficiary_id' => null,
+            'name' => $data->name,
+            'legal_id_type' => $data->legalIdType,
+            'legal_id' => $data->legalId,
+            'person_type' => $data->personType,
+            'bank_code' => $data->bankCode,
+            'account_type' => $data->accountType,
+            'account_number' => $data->accountNumber,
+            'category' => $data->category,
+            'email' => $data->email,
+            'phone' => $data->phone,
+            'metadata' => $data->metadata,
+        ]);
+
+        return PayoutBeneficiaryResult::success($beneficiary);
+    }
+
+    /**
+     * Send an immediate payout via `POST /payouts`. Requires a funding
+     * `account_id` configured in payments.payouts.wompi.account_id (see
+     * `GET /accounts` on the Payouts API).
+     */
+    public function createPayout(PayoutData $data): PayoutResult
+    {
+        $accountId = $this->getPayoutConfig('account_id');
+
+        if (! $accountId) {
+            return PayoutResult::failed(
+                payout: null,
+                errorCode: 'MISSING_ACCOUNT_ID',
+                errorMessage: 'Wompi payouts require a funding account_id (see GET /accounts on the Payouts API), '
+                .'configured in payments.payouts.wompi.account_id.',
+            );
+        }
+
+        $beneficiary = $data->beneficiary;
+
+        $payout = Payout::create([
+            'payout_beneficiary_id' => $beneficiary->id,
+            'reference_id' => $data->referenceId,
+            'provider' => PaymentProvider::Wompi,
+            'amount' => $data->amount,
+            'currency' => $data->currency,
+            'status' => PayoutStatus::Pending,
+            'description' => $data->description,
+            'metadata' => $data->metadata,
+        ]);
+
+        $paymentType = match ($beneficiary->category) {
+            'payroll' => 'PAYROLL',
+            default => 'PROVIDERS',
+        };
+
+        try {
+            $response = Http::withHeaders($this->payoutHeaders())
+                ->timeout(30)
+                ->post($this->getPayoutBaseUrl().'/payouts', [
+                    'reference' => $data->referenceId,
+                    'accountId' => $accountId,
+                    'paymentType' => $paymentType,
+                    'transactions' => [[
+                        'legalIdType' => $beneficiary->legal_id_type,
+                        'legalId' => $beneficiary->legal_id,
+                        'bankId' => $beneficiary->bank_code,
+                        'accountType' => $beneficiary->account_type,
+                        'accountNumber' => $beneficiary->account_number,
+                        'name' => $beneficiary->name,
+                        'amount' => $data->amount,
+                        'personType' => $beneficiary->person_type,
+                        'description' => $data->description,
+                        'email' => $beneficiary->email,
+                        'phone' => $beneficiary->phone,
+                        'reference' => $data->referenceId,
+                    ]],
+                ]);
+        } catch (\Exception $e) {
+            $payout->update(['status' => PayoutStatus::Failed]);
+
+            return PayoutResult::failed($payout->fresh(), 'API_ERROR', $e->getMessage());
+        }
+
+        $body = $response->json() ?? [];
+
+        if ($response->failed()) {
+            $payout->update(['status' => PayoutStatus::Failed, 'provider_response' => $body]);
+
+            return PayoutResult::failed(
+                payout: $payout->fresh(),
+                errorCode: 'API_ERROR',
+                errorMessage: $body['message'] ?? 'Wompi payout creation failed.',
+                rawPayload: $body,
+            );
+        }
+
+        $payout->update([
+            'provider_payout_id' => $body['data']['payoutId'] ?? null,
+            'status' => PayoutStatus::Processing,
+            'provider_response' => $body,
+        ]);
+
+        return PayoutResult::success($payout->fresh(), $body);
+    }
+
+    public function queryPayoutStatus(Payout $payout): PayoutResult
+    {
+        if (! $payout->provider_payout_id) {
+            return PayoutResult::failed(
+                payout: $payout,
+                errorCode: 'NO_PROVIDER_ID',
+                errorMessage: 'No Wompi payout id available for query.',
+            );
+        }
+
+        try {
+            $response = Http::withHeaders($this->payoutHeaders())
+                ->timeout(30)
+                ->get($this->getPayoutBaseUrl()."/payouts/{$payout->provider_payout_id}");
+        } catch (\Exception $e) {
+            return PayoutResult::failed($payout, 'API_ERROR', $e->getMessage());
+        }
+
+        $body = $response->json() ?? [];
+
+        if ($response->failed()) {
+            return PayoutResult::failed(
+                payout: $payout,
+                errorCode: 'API_ERROR',
+                errorMessage: $body['message'] ?? 'Failed to query Wompi payout status.',
+                rawPayload: $body,
+            );
+        }
+
+        $wompiStatus = $body['data']['status'] ?? $body['status'] ?? null;
+        $status = self::PAYOUT_STATUS_MAP[$wompiStatus] ?? PayoutStatus::Processing;
+
+        $payout->update([
+            'status' => $status,
+            'provider_response' => $body,
+            'processed_at' => $status->isFinal() ? now() : null,
+        ]);
+
+        return PayoutResult::success($payout->fresh(), $body);
+    }
+
+    /**
+     * Base URL for Wompi's Payouts API — a completely separate product
+     * from the payment gateway, with its own sandbox/production hosts.
+     */
+    protected function getPayoutBaseUrl(): string
+    {
+        $urls = $this->getPayoutConfig('base_url', [
+            'sandbox' => 'https://api.sandbox.payouts.wompi.co/v1',
+            'production' => 'https://api.payouts.wompi.co/v1',
+        ]);
+
+        if (is_string($urls)) {
+            return $urls;
+        }
+
+        $sandbox = $this->getPayoutConfig('sandbox', true);
+
+        return $sandbox ? $urls['sandbox'] : $urls['production'];
+    }
+
+    /**
+     * Wompi's Payouts API authenticates via two headers, not a Bearer
+     * token: x-api-key and user-principal-id — both separate credentials
+     * from the payment gateway's public/private keys.
+     */
+    protected function payoutHeaders(): array
+    {
+        return [
+            'x-api-key' => $this->getPayoutConfig('api_key'),
+            'user-principal-id' => $this->getPayoutConfig('user_principal_id'),
+            'Content-Type' => 'application/json',
+        ];
     }
 
     /**

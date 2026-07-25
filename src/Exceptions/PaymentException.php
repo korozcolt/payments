@@ -62,4 +62,17 @@ class PaymentException extends Exception
             errorCode: 'REFUND_NOT_SUPPORTED',
         );
     }
+
+    /**
+     * The provider has no payouts (third-party disbursement) API at all —
+     * its driver doesn't implement PayoutDriverInterface.
+     */
+    public static function payoutsNotSupported(PaymentProvider $provider): self
+    {
+        return new self(
+            message: "{$provider->value} has no payouts API — its driver does not implement PayoutDriverInterface.",
+            provider: $provider,
+            errorCode: 'PAYOUTS_NOT_SUPPORTED',
+        );
+    }
 }

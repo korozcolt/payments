@@ -36,6 +36,20 @@ Only **Wompi and MercadoPago** have real, tested subscription support in this re
 - **Wompi**: has no recurring-billing engine at all — only tokenized "payment sources" (`POST /v1/payment_sources`) for merchant-initiated charges. This package's own scheduler (the new Artisan command) is what actually bills each cycle for Wompi via `recurrent: true` transactions.
 - **ePayco**: ePayco does have a full recurring-billing product (Plan + Customer + Subscription, via the official `epayco/epayco-php` SDK — inspected directly on GitHub), but **we could not confirm, from public documentation, the SDK's own source, or a shared Postman collection, whether ePayco bills each cycle automatically or requires the merchant's backend to call `subscriptions->charge()` manually**. Shipping either assumption wrong risks silently-uncollected revenue at best and double-charging a customer at worst. `createPlan()`, `createSubscription()`, `cancelSubscription()`, and `chargeSubscriptionCycle()` on `EpaycoDriver` all return `notSupported()` explaining this. No `epayco/epayco-php` dependency was added since nothing calls it. This is left for a follow-up once that behavior is confirmed against a real ePayco account.
 
+### Added — Payouts (third-party payments)
+
+- New `PayoutDriverInterface` — a SEPARATE contract from `PaymentDriverInterface`, since payout support is genuinely provider-specific (MercadoPago has no payouts API at all, so its driver doesn't implement it). Methods: `configurePayouts()`, `registerBeneficiary()`, `createPayout()`, `queryPayoutStatus()`.
+- `PaymentManager::payoutDriver($provider)` resolves a payout-capable driver, throwing `PaymentException` (`errorCode = 'PAYOUTS_NOT_SUPPORTED'`) if the provider doesn't support payouts.
+- New `PayoutBeneficiaryData`/`PayoutBeneficiaryResult`/`PayoutData`/`PayoutResult` DTOs, `PayoutStatus` enum, `payout_beneficiaries`/`payouts` tables.
+- New `config('payments.payouts.*')` section — **entirely separate credentials from the payment gateway config** (`payments.drivers.*`). Wompi payouts additionally require a separate "Pagos a Terceros" module activated on the merchant's Wompi account.
+
+### Payout support — what's confirmed vs assumed
+
+Only **Wompi and ePayco** support payouts — MercadoPago has no payouts API in any country, confirmed both by its own SDK (no payout/transfer client exists) and by direct research.
+
+- **Wompi**: implemented directly against Wompi's **public OpenAPI spec** (fetched from `api.swaggerhub.com/apis/wompi/Payouts/1.0.0`) — `POST /payouts`, `GET /payouts/{id}`, `GET /banks`, `GET /accounts`, with confirmed request/response schemas and header-based auth (`x-api-key` + `user-principal-id`, distinct from the gateway's keys). This is the highest-confidence part of this feature — every field name and status value comes from the machine-readable spec, not prose. Wompi has no beneficiary-registration endpoint; `registerBeneficiary()` only creates a local record, and bank details are sent inline with each payout.
+- **ePayco**: endpoints and flow are confirmed from official docs (`flujo-de-pago-de-proveedores`, `flujo-de-pago-de-nómina`, `pagos-programados`, `ciclos-ach`): `POST /providers` or `/employees`, `POST /payments/bulk`, `POST /payments/generatePayment`, `POST /payments/findone`, on `apiflow.epayco.io/payouts/api/v2`. **However, the authentication mechanism for this specific API was not independently verified** — it reuses the same public/private-key → bearer-token login pattern confirmed elsewhere on ePayco's platform (per the official `epayco-php` SDK's `Client::authentication()`), applied to this base URL as a well-reasoned assumption, not a confirmed fact. If wrong, calls simply fail with `API_ERROR` (safe failure — no risk of a phantom/duplicate payout). Verify against a real ePayco sandbox account before production use. Also note ePayco's **ACH cycle windows**: transfers to banks other than Davivienda/DaviPlata process in scheduled windows, and anything submitted after 3pm reflects the next business day.
+
 ## [1.0.0] - 2024-01-23
 
 ### Added

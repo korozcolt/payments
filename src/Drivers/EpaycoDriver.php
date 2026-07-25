@@ -6,9 +6,15 @@ namespace Korbytes\Payments\Drivers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Korbytes\Payments\Contracts\PayoutDriverInterface;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
+use Korbytes\Payments\DTOs\PayoutBeneficiaryData;
+use Korbytes\Payments\DTOs\PayoutBeneficiaryResult;
+use Korbytes\Payments\DTOs\PayoutData;
+use Korbytes\Payments\DTOs\PayoutResult;
 use Korbytes\Payments\DTOs\PlanData;
 use Korbytes\Payments\DTOs\PlanResult;
 use Korbytes\Payments\DTOs\RefundResult;
@@ -17,12 +23,15 @@ use Korbytes\Payments\DTOs\SubscriptionResult;
 use Korbytes\Payments\DTOs\WebhookResult;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Enums\PaymentStatus;
+use Korbytes\Payments\Enums\PayoutStatus;
 use Korbytes\Payments\Events\PaymentApproved;
 use Korbytes\Payments\Events\PaymentCreated;
 use Korbytes\Payments\Events\PaymentRejected;
 use Korbytes\Payments\Events\WebhookReceived;
 use Korbytes\Payments\Exceptions\InvalidWebhookSignatureException;
 use Korbytes\Payments\Models\PaymentTransaction;
+use Korbytes\Payments\Models\Payout;
+use Korbytes\Payments\Models\PayoutBeneficiary;
 use Korbytes\Payments\Models\Subscription;
 
 /**
@@ -31,8 +40,21 @@ use Korbytes\Payments\Models\Subscription;
  * @see https://docs.epayco.com/
  * @see https://docs.epayco.com/docs/integracion-personalizada
  */
-class EpaycoDriver extends AbstractDriver
+class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
 {
+    /**
+     * ePayco Payouts (apiflow.epayco.io) status values, per
+     * flujo-de-pago-de-proveedores / flujo-de-pago-de-nómina, mapped to our
+     * own PayoutStatus.
+     */
+    protected const array PAYOUT_STATUS_MAP = [
+        'SIN_PROCESAR' => PayoutStatus::Pending,
+        'PENDIENTE' => PayoutStatus::Processing,
+        'ACEPTADO' => PayoutStatus::Completed,
+        'RECHAZADO' => PayoutStatus::Rejected,
+        'FALLIDO' => PayoutStatus::Failed,
+    ];
+
     /**
      * Map ePayco response codes to internal statuses.
      *
@@ -491,6 +513,258 @@ class EpaycoDriver extends AbstractDriver
             errorCode: 'SUBSCRIPTIONS_NOT_SUPPORTED',
             errorMessage: 'ePayco subscriptions are not implemented in this package — see createPlan() for why.',
         );
+    }
+
+    /**
+     * Registers a supplier or payroll beneficiary via ePayco's Payouts
+     * product (apiflow.epayco.io), confirmed from official docs
+     * (flujo-de-pago-de-proveedores / flujo-de-pago-de-nómina):
+     * POST /providers for category=providers, POST /employees for
+     * category=payroll.
+     *
+     * ⚠️ Authentication for this specific API was NOT independently
+     * verified — see payoutHeaders() for the assumption being made.
+     */
+    public function registerBeneficiary(PayoutBeneficiaryData $data): PayoutBeneficiaryResult
+    {
+        $endpoint = $data->category === 'payroll' ? '/employees' : '/providers';
+
+        try {
+            $response = Http::withHeaders($this->payoutHeaders())
+                ->timeout(30)
+                ->post($this->getPayoutBaseUrl().$endpoint, [
+                    'id_epayco' => $this->getPayoutConfig('id_epayco'),
+                    'name' => $data->name,
+                    'company_name' => $data->name,
+                    'document_type' => $data->legalIdType,
+                    'document_number' => $data->legalId,
+                    'bank' => $data->bankCode,
+                    'type_account' => $data->accountType,
+                    'account_number' => $data->accountNumber,
+                    'email' => $data->email,
+                    'phone' => $data->phone,
+                ]);
+        } catch (\Exception $e) {
+            return PayoutBeneficiaryResult::failed('API_ERROR', $e->getMessage());
+        }
+
+        $body = $response->json() ?? [];
+
+        if ($response->failed()) {
+            return PayoutBeneficiaryResult::failed(
+                errorCode: 'API_ERROR',
+                errorMessage: $body['message'] ?? 'Failed to register ePayco payout beneficiary.',
+                rawPayload: $body,
+            );
+        }
+
+        $providerBeneficiaryId = $body['data']['id'] ?? $body['id'] ?? null;
+
+        $beneficiary = PayoutBeneficiary::create([
+            'provider' => PaymentProvider::Epayco,
+            'provider_beneficiary_id' => $providerBeneficiaryId ? (string) $providerBeneficiaryId : null,
+            'name' => $data->name,
+            'legal_id_type' => $data->legalIdType,
+            'legal_id' => $data->legalId,
+            'person_type' => $data->personType,
+            'bank_code' => $data->bankCode,
+            'account_type' => $data->accountType,
+            'account_number' => $data->accountNumber,
+            'category' => $data->category,
+            'email' => $data->email,
+            'phone' => $data->phone,
+            'metadata' => $data->metadata,
+        ]);
+
+        return PayoutBeneficiaryResult::success($beneficiary, $body);
+    }
+
+    /**
+     * Creates a payout in two steps, per ePayco's confirmed flow:
+     * POST /payments/bulk registers the payment (SIN_PROCESAR), then
+     * POST /payments/generatePayment triggers the actual dispersal.
+     */
+    public function createPayout(PayoutData $data): PayoutResult
+    {
+        $beneficiary = $data->beneficiary;
+
+        if (! $beneficiary->provider_beneficiary_id) {
+            return PayoutResult::failed(
+                payout: null,
+                errorCode: 'MISSING_PROVIDER_BENEFICIARY',
+                errorMessage: 'This beneficiary was not registered via the epayco driver (no provider_beneficiary_id) — call registerBeneficiary() with it first.',
+            );
+        }
+
+        $pocketType = $beneficiary->category === 'payroll' ? 'nomina' : 'proveedor';
+
+        $payout = Payout::create([
+            'payout_beneficiary_id' => $beneficiary->id,
+            'reference_id' => $data->referenceId,
+            'provider' => PaymentProvider::Epayco,
+            'amount' => $data->amount,
+            'currency' => $data->currency,
+            'status' => PayoutStatus::Pending,
+            'description' => $data->description,
+            'metadata' => $data->metadata,
+        ]);
+
+        try {
+            $bulkResponse = Http::withHeaders($this->payoutHeaders())
+                ->timeout(30)
+                ->post($this->getPayoutBaseUrl().'/payments/bulk', [[
+                    'id_epayco' => $this->getPayoutConfig('id_epayco'),
+                    'recipient_id' => $beneficiary->provider_beneficiary_id,
+                    'pocket_type' => $pocketType,
+                    'total' => $data->amount / 100,
+                    'reference' => $data->referenceId,
+                    'description' => $data->description,
+                ]]);
+        } catch (\Exception $e) {
+            $payout->update(['status' => PayoutStatus::Failed]);
+
+            return PayoutResult::failed($payout->fresh(), 'API_ERROR', $e->getMessage());
+        }
+
+        $bulkBody = $bulkResponse->json() ?? [];
+
+        if ($bulkResponse->failed()) {
+            $payout->update(['status' => PayoutStatus::Failed, 'provider_response' => $bulkBody]);
+
+            return PayoutResult::failed(
+                payout: $payout->fresh(),
+                errorCode: 'API_ERROR',
+                errorMessage: $bulkBody['message'] ?? 'Failed to create ePayco payment.',
+                rawPayload: $bulkBody,
+            );
+        }
+
+        $paymentId = $bulkBody['data'][0]['id_payment'] ?? $bulkBody['id_payment'] ?? null;
+
+        if (! $paymentId) {
+            $payout->update(['status' => PayoutStatus::Failed, 'provider_response' => $bulkBody]);
+
+            return PayoutResult::failed($payout->fresh(), 'API_ERROR', 'ePayco did not return a payment id from payments/bulk.', $bulkBody);
+        }
+
+        try {
+            $dispersalResponse = Http::withHeaders($this->payoutHeaders())
+                ->timeout(30)
+                ->post($this->getPayoutBaseUrl().'/payments/generatePayment', [
+                    'id_epayco' => $this->getPayoutConfig('id_epayco'),
+                    'target' => $pocketType,
+                    'id_payment' => [$paymentId],
+                ]);
+        } catch (\Exception $e) {
+            $payout->update(['status' => PayoutStatus::Failed, 'provider_payout_id' => (string) $paymentId]);
+
+            return PayoutResult::failed($payout->fresh(), 'API_ERROR', $e->getMessage());
+        }
+
+        $dispersalBody = $dispersalResponse->json() ?? [];
+
+        $payout->update([
+            'provider_payout_id' => (string) $paymentId,
+            'status' => $dispersalResponse->failed() ? PayoutStatus::Failed : PayoutStatus::Processing,
+            'provider_response' => ['bulk' => $bulkBody, 'dispersal' => $dispersalBody],
+        ]);
+
+        if ($dispersalResponse->failed()) {
+            return PayoutResult::failed(
+                payout: $payout->fresh(),
+                errorCode: 'API_ERROR',
+                errorMessage: $dispersalBody['message'] ?? 'Failed to generate ePayco payment dispersal.',
+                rawPayload: $dispersalBody,
+            );
+        }
+
+        return PayoutResult::success($payout->fresh(), $dispersalBody);
+    }
+
+    public function queryPayoutStatus(Payout $payout): PayoutResult
+    {
+        if (! $payout->provider_payout_id) {
+            return PayoutResult::failed(
+                payout: $payout,
+                errorCode: 'NO_PROVIDER_ID',
+                errorMessage: 'No ePayco payment id available for query.',
+            );
+        }
+
+        try {
+            $response = Http::withHeaders($this->payoutHeaders())
+                ->timeout(30)
+                ->post($this->getPayoutBaseUrl().'/payments/findone', [
+                    'id_epayco' => $this->getPayoutConfig('id_epayco'),
+                    'id_payment' => $payout->provider_payout_id,
+                ]);
+        } catch (\Exception $e) {
+            return PayoutResult::failed($payout, 'API_ERROR', $e->getMessage());
+        }
+
+        $body = $response->json() ?? [];
+
+        if ($response->failed()) {
+            return PayoutResult::failed(
+                payout: $payout,
+                errorCode: 'API_ERROR',
+                errorMessage: $body['message'] ?? 'Failed to query ePayco payment status.',
+                rawPayload: $body,
+            );
+        }
+
+        $epaycoStatus = $body['data']['status'] ?? $body['status'] ?? null;
+        $status = self::PAYOUT_STATUS_MAP[$epaycoStatus] ?? PayoutStatus::Processing;
+
+        $payout->update([
+            'status' => $status,
+            'provider_response' => $body,
+            'processed_at' => $status->isFinal() ? now() : null,
+        ]);
+
+        return PayoutResult::success($payout->fresh(), $body);
+    }
+
+    protected function getPayoutBaseUrl(): string
+    {
+        return $this->getPayoutConfig('base_url', 'https://apiflow.epayco.io/payouts/api/v2');
+    }
+
+    /**
+     * ⚠️ ASSUMPTION, not independently verified: this reuses the same
+     * public/private-key → bearer-token login pattern confirmed for
+     * ePayco's other APIs (see the official epayco-php SDK's
+     * Client::authentication(), which POSTs public_key/private_key to
+     * /v1/auth/login and reads back a bearer_token). Whether
+     * apiflow.epayco.io's Payouts product uses this exact same login
+     * endpoint/shape was not confirmed — verify against a real sandbox
+     * account before relying on this in production. See USAGE.md.
+     */
+    protected function payoutHeaders(): array
+    {
+        return [
+            'Authorization' => 'Bearer '.$this->payoutBearerToken(),
+            'Content-Type' => 'application/json',
+        ];
+    }
+
+    protected function payoutBearerToken(): string
+    {
+        $response = Http::withHeaders(['Content-Type' => 'application/json'])
+            ->timeout(30)
+            ->post($this->getPayoutBaseUrl().'/login', [
+                'public_key' => $this->getPayoutConfig('public_key'),
+                'private_key' => $this->getPayoutConfig('private_key'),
+            ]);
+
+        $body = $response->json() ?? [];
+        $token = $body['token'] ?? $body['bearer_token'] ?? null;
+
+        if (! $token) {
+            throw new \RuntimeException('Failed to authenticate with the ePayco Payouts API — see USAGE.md, this auth flow is unverified.');
+        }
+
+        return $token;
     }
 
     /**
