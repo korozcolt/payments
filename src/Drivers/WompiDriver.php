@@ -9,17 +9,28 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
+use Korbytes\Payments\DTOs\PlanData;
+use Korbytes\Payments\DTOs\PlanResult;
 use Korbytes\Payments\DTOs\RefundResult;
+use Korbytes\Payments\DTOs\SubscriptionData;
+use Korbytes\Payments\DTOs\SubscriptionResult;
 use Korbytes\Payments\DTOs\WebhookResult;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Enums\PaymentStatus;
+use Korbytes\Payments\Enums\SubscriptionStatus;
 use Korbytes\Payments\Events\PaymentApproved;
 use Korbytes\Payments\Events\PaymentCreated;
 use Korbytes\Payments\Events\PaymentRefunded;
 use Korbytes\Payments\Events\PaymentRejected;
+use Korbytes\Payments\Events\SubscriptionCancelled;
+use Korbytes\Payments\Events\SubscriptionChargeFailed;
+use Korbytes\Payments\Events\SubscriptionChargeSucceeded;
+use Korbytes\Payments\Events\SubscriptionCreated;
 use Korbytes\Payments\Events\WebhookReceived;
 use Korbytes\Payments\Exceptions\InvalidWebhookSignatureException;
 use Korbytes\Payments\Models\PaymentTransaction;
+use Korbytes\Payments\Models\Subscription;
+use Korbytes\Payments\Models\SubscriptionPlan;
 
 /**
  * Wompi Payment Driver Implementation.
@@ -436,6 +447,226 @@ class WompiDriver extends AbstractDriver
                 errorMessage: 'Wompi void request failed ('.$e->getMessage().'). This transaction likely can only be refunded manually via the Wompi dashboard.',
             );
         }
+    }
+
+    /**
+     * Wompi has no server-side plan object — it only offers tokenized
+     * "payment sources" for merchant-initiated recurring charges. The plan
+     * is purely a local record used to compute billing cycles.
+     *
+     * @see https://docs.wompi.co/en/docs/colombia/fuentes-de-pago/
+     */
+    public function createPlan(PlanData $data): PlanResult
+    {
+        $plan = SubscriptionPlan::create([
+            'provider' => PaymentProvider::Wompi,
+            'provider_plan_id' => null,
+            'name' => $data->name,
+            'amount' => $data->amount,
+            'currency' => $data->currency,
+            'interval' => $data->interval,
+            'interval_count' => $data->intervalCount,
+            'trial_days' => $data->trialDays,
+            'metadata' => $data->metadata,
+        ]);
+
+        return PlanResult::success($plan);
+    }
+
+    /**
+     * Subscribing a customer means creating a Wompi "payment source" from an
+     * already-tokenized card, which lets us charge it later without the
+     * customer present (`recurrent: true` transactions). Requires an
+     * `acceptance_token` in $data->providerOptions — obtained from
+     * `GET /merchants/{public_key}` and shown to the customer as part of
+     * accepting Wompi's terms at tokenization time.
+     */
+    public function createSubscription(SubscriptionData $data): SubscriptionResult
+    {
+        $acceptanceToken = $data->providerOptions['acceptance_token'] ?? null;
+
+        if (! $acceptanceToken) {
+            return SubscriptionResult::failed(
+                subscription: null,
+                errorCode: 'MISSING_ACCEPTANCE_TOKEN',
+                errorMessage: 'Wompi requires an acceptance_token in providerOptions to create a payment source '
+                .'(fetch it from GET /merchants/{public_key} and have the customer accept it).',
+            );
+        }
+
+        try {
+            $response = $this->makeRequest(
+                method: 'POST',
+                endpoint: '/payment_sources',
+                data: [
+                    'type' => 'CARD',
+                    'token' => $data->paymentToken,
+                    'customer_email' => $data->getCustomerEmail(),
+                    'acceptance_token' => $acceptanceToken,
+                ],
+                headers: [
+                    'Authorization' => 'Bearer '.$this->getConfig('private_key'),
+                ],
+            );
+        } catch (\Exception $e) {
+            return SubscriptionResult::failed(
+                subscription: null,
+                errorCode: 'PAYMENT_SOURCE_ERROR',
+                errorMessage: $e->getMessage(),
+            );
+        }
+
+        $paymentSourceId = $response['data']['id'] ?? null;
+
+        if (! $paymentSourceId) {
+            return SubscriptionResult::failed(
+                subscription: null,
+                errorCode: 'PAYMENT_SOURCE_ERROR',
+                errorMessage: 'Wompi did not return a payment source id.',
+                rawPayload: $response,
+            );
+        }
+
+        $subscription = Subscription::create([
+            'subscription_plan_id' => $data->plan->id,
+            'reference_id' => $data->referenceId,
+            'provider' => PaymentProvider::Wompi,
+            'provider_payment_source_id' => (string) $paymentSourceId,
+            'customer_email' => $data->getCustomerEmail(),
+            'customer_name' => $data->getCustomerName(),
+            'customer_phone' => $data->getCustomerPhone(),
+            'status' => SubscriptionStatus::Active,
+            'next_billing_date' => $data->plan->interval->addTo(now(), $data->plan->interval_count),
+            'started_at' => now(),
+            'metadata' => $data->metadata,
+            'provider_response' => $response,
+        ]);
+
+        $this->log('info', 'Subscription created', [
+            'subscription_id' => $subscription->id,
+            'payment_source_id' => $paymentSourceId,
+        ]);
+
+        $result = SubscriptionResult::success($subscription, $response);
+
+        SubscriptionCreated::dispatch($subscription, $result);
+
+        return $result;
+    }
+
+    /**
+     * Wompi has no server-side subscription object to cancel — this only
+     * stops our own scheduler from billing it. The stored payment source
+     * token itself is not deleted from Wompi (no confirmed delete endpoint).
+     */
+    public function cancelSubscription(Subscription $subscription): SubscriptionResult
+    {
+        $subscription->update([
+            'status' => SubscriptionStatus::Cancelled,
+            'cancelled_at' => now(),
+            'next_billing_date' => null,
+        ]);
+
+        $result = SubscriptionResult::success($subscription->fresh());
+
+        SubscriptionCancelled::dispatch($subscription->fresh(), $result);
+
+        return $result;
+    }
+
+    /**
+     * Charge one billing cycle using the stored payment source. This is
+     * what `payments:process-subscriptions` calls for Wompi subscriptions
+     * (see config('payments.subscriptions.scheduled_providers')).
+     */
+    public function chargeSubscriptionCycle(Subscription $subscription): PaymentResult
+    {
+        if (! $subscription->provider_payment_source_id) {
+            return PaymentResult::failed(
+                errorCode: 'NO_PAYMENT_SOURCE',
+                errorMessage: 'No Wompi payment source stored for this subscription.',
+            );
+        }
+
+        $plan = $subscription->plan;
+        $cycleReferenceId = $subscription->reference_id.'-CYCLE-'.now()->format('YmdHis');
+
+        $transaction = PaymentTransaction::create([
+            'subscription_id' => $subscription->id,
+            'reference_id' => $cycleReferenceId,
+            'provider' => PaymentProvider::Wompi,
+            'amount' => $plan->amount,
+            'currency' => $plan->currency,
+            'status' => PaymentStatus::Pending,
+            'idempotency_key' => (string) Str::uuid(),
+            'initiated_at' => now(),
+        ]);
+
+        $reference = $this->generateReference($cycleReferenceId, $transaction->id);
+
+        try {
+            $response = $this->makeRequest(
+                method: 'POST',
+                endpoint: '/transactions',
+                data: [
+                    'amount_in_cents' => $plan->amount,
+                    'currency' => $plan->currency,
+                    'customer_email' => $subscription->customer_email,
+                    'payment_source_id' => (int) $subscription->provider_payment_source_id,
+                    'reference' => $reference,
+                    'recurrent' => true,
+                ],
+                headers: [
+                    'Authorization' => 'Bearer '.$this->getConfig('private_key'),
+                ],
+            );
+        } catch (\Exception $e) {
+            $transaction->update(['status' => PaymentStatus::Rejected, 'error_message' => $e->getMessage()]);
+
+            $result = PaymentResult::failed(errorCode: 'API_ERROR', errorMessage: $e->getMessage(), transaction: $transaction->fresh());
+
+            $subscription->update(['failed_charge_attempts' => $subscription->failed_charge_attempts + 1]);
+
+            SubscriptionChargeFailed::dispatch($subscription->fresh(), $result);
+
+            return $result;
+        }
+
+        $data = $response['data'] ?? [];
+        $wompiStatus = $data['status'] ?? null;
+        $status = self::STATUS_MAP[$wompiStatus] ?? PaymentStatus::Pending;
+
+        $transaction->update([
+            'status' => $status,
+            'provider_transaction_id' => $data['id'] ?? null,
+            'provider_response' => $response,
+            'completed_at' => $status->isFinal() ? now() : null,
+        ]);
+
+        $subscription->update([
+            'last_charged_at' => now(),
+            'next_billing_date' => $plan->interval->addTo(now(), $plan->interval_count),
+            'failed_charge_attempts' => $status === PaymentStatus::Approved ? 0 : $subscription->failed_charge_attempts + 1,
+        ]);
+
+        $result = PaymentResult::success(
+            transaction: $transaction->fresh(),
+            provider: PaymentProvider::Wompi,
+            widgetUrl: $this->getWidgetUrl(),
+            publicKey: $this->getPublicKey(),
+            amountInCents: $plan->amount,
+            currency: $plan->currency,
+            reference: $reference,
+            signature: '',
+        );
+
+        if ($status === PaymentStatus::Approved) {
+            SubscriptionChargeSucceeded::dispatch($subscription->fresh(), $result);
+        } else {
+            SubscriptionChargeFailed::dispatch($subscription->fresh(), $result);
+        }
+
+        return $result;
     }
 
     /**

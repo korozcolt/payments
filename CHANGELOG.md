@@ -21,6 +21,21 @@ Refund capability is **not equivalent** across providers. See the "Reembolsos" s
 - **Wompi**: **no post-settlement refund API exists**. Only `POST /transactions/{id}/void` is available, which cancels a card transaction before it settles, and only in full (no partial amounts). Once a transaction settles, refunding it is only possible manually via the Wompi dashboard — `refund()` reports this as `MANUAL_REFUND_REQUIRED` rather than pretending to succeed.
 - **ePayco**: **refund is not implemented in this package for any payment method**, including credit cards. ePayco's reversal API is documented to support credit card (TC) only — PSE and cash can never be reversed via API — but the endpoint's technical spec is gated behind an authenticated dashboard-only portal (`api.epayco.co`) that could not be verified while building this feature. `EpaycoDriver::refund()` always returns `RefundResult::notSupported()` and directs the merchant to ePayco's dashboard/support. Implementing real TC refund support is left for a follow-up once the endpoint contract is confirmed.
 
+### Added — Subscriptions (recurring payments)
+
+- `createPlan()`, `createSubscription()`, `cancelSubscription()`, `chargeSubscriptionCycle()` added to `PaymentDriverInterface`.
+- New `PlanData`/`PlanResult`/`SubscriptionData`/`SubscriptionResult` DTOs, `SubscriptionCreated`/`SubscriptionCancelled`/`SubscriptionChargeSucceeded`/`SubscriptionChargeFailed` events, `SubscriptionStatus`/`BillingInterval` enums.
+- New `subscription_plans` and `subscriptions` tables, plus a nullable `subscription_id` column on `payment_transactions` (recurring cycle charges are just tagged `PaymentTransaction` rows — no separate ledger).
+- New `payments:process-subscriptions` Artisan command. It does nothing by itself — the host application must add it to its own scheduler (`Schedule::command('payments:process-subscriptions')->hourly()` in `routes/console.php`). Which providers it charges is controlled by `config('payments.subscriptions.scheduled_providers')` (default: `['wompi']` only).
+
+### Subscription support — what's actually implemented vs deliberately skipped
+
+Only **Wompi and MercadoPago** have real, tested subscription support in this release. **ePayco subscriptions are not implemented at all**, on purpose — see the "Suscripciones" section in USAGE.md for full detail:
+
+- **MercadoPago**: full native support via the SDK's `PreApprovalPlanClient`/`PreApprovalClient` — MercadoPago bills each cycle automatically. `chargeSubscriptionCycle()` is a no-op for MercadoPago (`errorCode = 'NOT_APPLICABLE'`); recurring charge results arrive via `processWebhook()`'s new handling of the `subscription_authorized_payment` webhook type. That specific webhook path was not verified against a live MercadoPago sandbox this session — test it end-to-end before relying on it in production.
+- **Wompi**: has no recurring-billing engine at all — only tokenized "payment sources" (`POST /v1/payment_sources`) for merchant-initiated charges. This package's own scheduler (the new Artisan command) is what actually bills each cycle for Wompi via `recurrent: true` transactions.
+- **ePayco**: ePayco does have a full recurring-billing product (Plan + Customer + Subscription, via the official `epayco/epayco-php` SDK — inspected directly on GitHub), but **we could not confirm, from public documentation, the SDK's own source, or a shared Postman collection, whether ePayco bills each cycle automatically or requires the merchant's backend to call `subscriptions->charge()` manually**. Shipping either assumption wrong risks silently-uncollected revenue at best and double-charging a customer at worst. `createPlan()`, `createSubscription()`, `cancelSubscription()`, and `chargeSubscriptionCycle()` on `EpaycoDriver` all return `notSupported()` explaining this. No `epayco/epayco-php` dependency was added since nothing calls it. This is left for a follow-up once that behavior is confirmed against a real ePayco account.
+
 ## [1.0.0] - 2024-01-23
 
 ### Added

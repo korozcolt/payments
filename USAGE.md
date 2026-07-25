@@ -409,6 +409,92 @@ Wompi **no expone una API de reembolso post-liquidación**. Lo único disponible
 
 Si en el futuro se confirma el spec del endpoint de reversión de ePayco, se puede implementar soporte real para TC siguiendo el mismo patrón que `WompiDriver::refund()` o `MercadoPagoDriver::refund()`.
 
+## Suscripciones (Recurring Payments)
+
+**Solo Wompi y MercadoPago tienen soporte real de suscripciones en este paquete. ePayco no está implementado — ver más abajo por qué.**
+
+| Proveedor    | Motor de cobro recurrente                                    | Nuestro scheduler lo cobra |
+|--------------|---------------------------------------------------------------|------------------------------|
+| MercadoPago  | Propio (`PreApproval`/`PreApprovalPlan`), cobra automático     | No — MercadoPago se auto-cobra |
+| Wompi        | Ninguno — solo tokenización (`payment_sources`)               | Sí — vía `payments:process-subscriptions` |
+| ePayco       | **No implementado** (ver nota abajo)                          | N/A |
+
+Nunca se maneja tarjeta cruda en este paquete: `$paymentToken` siempre debe venir de una tokenización hecha en el frontend (widget de Wompi, formulario de tarjeta de MercadoPago).
+
+### Crear un plan y suscribir un cliente
+
+```php
+use Korbytes\Payments\DTOs\PlanData;
+use Korbytes\Payments\DTOs\SubscriptionData;
+use Korbytes\Payments\Enums\BillingInterval;
+use Korbytes\Payments\Facades\Payments;
+
+$planResult = Payments::driver('mercadopago')->createPlan(new PlanData(
+    name: 'Plan Pro Mensual',
+    amount: 50000, // en centavos
+    interval: BillingInterval::Month,
+    trialDays: 7,
+));
+
+$subscriptionResult = Payments::driver('mercadopago')->createSubscription(new SubscriptionData(
+    plan: $planResult->plan,
+    referenceId: $order->ulid,
+    paymentToken: $cardTokenFromFrontend,
+    customer: ['name' => 'Juan Pérez', 'email' => 'juan@test.com'],
+));
+
+if ($subscriptionResult->success) {
+    $subscription = $subscriptionResult->subscription;
+} else {
+    // $subscriptionResult->errorCode / errorMessage
+}
+```
+
+### Cancelar
+
+```php
+Payments::driver($subscription->provider->value)->cancelSubscription($subscription);
+```
+
+### MercadoPago
+
+Soporte completo vía su motor nativo de suscripciones (`PreApprovalPlanClient` + `PreApprovalClient`). MercadoPago cobra cada ciclo **automáticamente** — no llames `chargeSubscriptionCycle()` para MercadoPago, siempre devuelve `errorCode = 'NOT_APPLICABLE'`. El resultado de cada cobro recurrente llega vía webhook (`type = 'subscription_authorized_payment'`), que `processWebhook()` ya maneja: crea una `PaymentTransaction` ligada a la suscripción y dispara `SubscriptionChargeSucceeded`/`SubscriptionChargeFailed`.
+
+⚠️ La forma exacta de este webhook (tipo, payload) no se verificó contra un sandbox real de MercadoPago en esta sesión — pruébalo de punta a punta antes de confiar en él en producción.
+
+### Wompi
+
+Wompi no tiene motor de suscripciones — solo tokenización real vía **"payment sources"** (`POST /v1/payment_sources`). `createSubscription()` requiere un `acceptance_token` en `providerOptions` (obtenido de `GET /merchants/{public_key}`, mostrado al cliente al aceptar términos):
+
+```php
+Payments::driver('wompi')->createSubscription(new SubscriptionData(
+    plan: $plan,
+    referenceId: $order->ulid,
+    paymentToken: $cardTokenFromWompiWidget,
+    customer: ['name' => 'Juan Pérez', 'email' => 'juan@test.com'],
+    providerOptions: ['acceptance_token' => $acceptanceToken],
+));
+```
+
+Como Wompi no tiene motor propio, **este paquete debe cobrar cada ciclo con su propio scheduler**. Trae un comando Artisan (`payments:process-subscriptions`) que no hace nada por sí solo — debes agregarlo al scheduler de tu proyecto:
+
+```php
+// routes/console.php (Laravel 11+)
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('payments:process-subscriptions')->hourly();
+```
+
+Controla qué proveedores cobra este comando con `payments.subscriptions.scheduled_providers` (`config/payments.php`, default `['wompi']`). **No agregues `'mercadopago'` a esa lista** — MercadoPago ya se cobra solo, y hacerlo generaría cobro doble.
+
+`cancelSubscription()` para Wompi solo marca la suscripción como cancelada localmente (detiene que el scheduler la cobre) — no existe un endpoint confirmado para eliminar el `payment_source` del lado de Wompi.
+
+### ePayco
+
+**No implementado en este paquete**, deliberadamente. ePayco sí tiene un producto de recurrencia completo (Plan + Customer + Subscription vía el SDK oficial [`epayco/epayco-php`](https://github.com/epayco/epayco-php)), pero no pudimos confirmar, agotando fuentes públicas (documentación, código fuente del SDK, e incluso una colección de Postman compartida), **si ePayco cobra automático cada ciclo o si el backend debe llamar `subscriptions->charge()` manualmente**. Implementar cualquiera de las dos suposiciones mal tiene riesgo real: desde ingresos no cobrados silenciosamente hasta cobro doble a un cliente.
+
+`createPlan()`, `createSubscription()`, `cancelSubscription()` y `chargeSubscriptionCycle()` de `EpaycoDriver` siempre devuelven `notSupported()` con este mismo motivo. Para implementarlo de verdad, primero hay que confirmar ese comportamiento contra una cuenta/sandbox real de ePayco.
+
 ## Verificar Disponibilidad
 
 ```php

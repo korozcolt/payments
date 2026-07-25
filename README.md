@@ -18,13 +18,13 @@ A unified payment gateway package for Laravel supporting **Wompi**, **MercadoPag
 
 ## Supported Providers
 
-| Provider | Country | Methods | Automated Refunds |
-|----------|---------|---------|--------------------|
-| **Wompi** | Colombia | Cards, PSE, Nequi, Bancolombia, Efecty | Card only, pre-settlement `void`, full amount only — otherwise manual |
-| **MercadoPago** | Latin America | Cards, Bank Transfer, Cash | Yes — full or partial |
-| **ePayco** | Colombia | Cards, PSE, Efecty, Baloto | Not implemented — always manual (see USAGE.md) |
+| Provider | Country | Methods | Automated Refunds | Subscriptions |
+|----------|---------|---------|--------------------|----------------|
+| **Wompi** | Colombia | Cards, PSE, Nequi, Bancolombia, Efecty | Card only, pre-settlement `void`, full amount only — otherwise manual | Yes — via tokenized "payment sources" + this package's own scheduler |
+| **MercadoPago** | Latin America | Cards, Bank Transfer, Cash | Yes — full or partial | Yes — native engine, bills itself automatically |
+| **ePayco** | Colombia | Cards, PSE, Efecty, Baloto | Not implemented — always manual (see USAGE.md) | Not implemented — unverified billing behavior (see USAGE.md) |
 
-Refund support genuinely differs per provider's own API — see [Reembolsos in USAGE.md](USAGE.md#reembolsos-refunds) before relying on `refund()`.
+Refund and subscription support genuinely differ per provider's own API — see [Reembolsos](USAGE.md#reembolsos-refunds) and [Suscripciones](USAGE.md#suscripciones-recurring-payments) in USAGE.md before relying on `refund()` or `createSubscription()`.
 
 ## Requirements
 
@@ -185,6 +185,10 @@ Configure these in your payment provider dashboards:
 | `PaymentApproved` | Payment approved by provider |
 | `PaymentRejected` | Payment rejected/failed |
 | `PaymentRefunded` | Payment successfully refunded via the provider's API (not dispatched for manual/unsupported refunds) |
+| `SubscriptionCreated` | Customer subscribed to a plan |
+| `SubscriptionCancelled` | Subscription cancelled |
+| `SubscriptionChargeSucceeded` | A recurring cycle was charged successfully (scheduler-driven for Wompi, webhook-driven for MercadoPago) |
+| `SubscriptionChargeFailed` | A recurring cycle charge failed — this package does no dunning/auto-cancellation, listen here for retry/notification logic |
 | `WebhookReceived` | Webhook received from provider |
 
 ## API Reference

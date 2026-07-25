@@ -119,6 +119,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Subscriptions
+    |--------------------------------------------------------------------------
+    |
+    | `scheduled_providers` controls which providers' due subscriptions get
+    | charged by this package's `payments:process-subscriptions` command
+    | (which you must add to your own scheduler — see USAGE.md). Only list
+    | providers with NO recurring-billing engine of their own: Wompi has no
+    | such engine, so it needs this. MercadoPago bills itself automatically
+    | — do NOT add it here, or you risk double-charging customers.
+    |
+    | ePayco has no subscription support in this package at all (unverified
+    | billing behavior — see USAGE.md), so it's irrelevant here either way.
+    |
+    */
+    'subscriptions' => [
+        'scheduled_providers' => env('PAYMENTS_SUBSCRIPTIONS_SCHEDULED_PROVIDERS')
+            ? explode(',', env('PAYMENTS_SUBSCRIPTIONS_SCHEDULED_PROVIDERS'))
+            : ['wompi'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Currency
     |--------------------------------------------------------------------------
     */

@@ -18,6 +18,7 @@ use Korbytes\Payments\Enums\PaymentStatus;
  * @property string $ulid
  * @property string|null $payable_type
  * @property int|null $payable_id
+ * @property int|null $subscription_id
  * @property string $reference_id
  * @property PaymentProvider $provider
  * @property string|null $provider_transaction_id
@@ -44,6 +45,7 @@ class PaymentTransaction extends Model
     protected $fillable = [
         'payable_type',
         'payable_id',
+        'subscription_id',
         'reference_id',
         'provider',
         'provider_transaction_id',
@@ -110,6 +112,14 @@ class PaymentTransaction extends Model
     public function gateway(): BelongsTo
     {
         return $this->belongsTo(PaymentGateway::class, 'provider', 'provider');
+    }
+
+    /**
+     * Get the subscription this recurring charge belongs to, if any.
+     */
+    public function subscription(): BelongsTo
+    {
+        return $this->belongsTo(Subscription::class);
     }
 
     // Computed attributes

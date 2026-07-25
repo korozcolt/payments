@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Korbytes\Payments;
 
 use Illuminate\Support\ServiceProvider;
+use Korbytes\Payments\Console\Commands\ProcessDueSubscriptionsCommand;
 
 class PaymentsServiceProvider extends ServiceProvider
 {
@@ -32,6 +33,23 @@ class PaymentsServiceProvider extends ServiceProvider
     {
         $this->registerPublishing();
         $this->registerRoutes();
+        $this->registerCommands();
+    }
+
+    /**
+     * Register the package's Artisan commands.
+     *
+     * Registering the command does NOT schedule it — the host application
+     * must add it to its own scheduler for subscriptions to actually be
+     * charged. See USAGE.md.
+     */
+    protected function registerCommands(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                ProcessDueSubscriptionsCommand::class,
+            ]);
+        }
     }
 
     /**
