@@ -324,3 +324,14 @@ If you discover any security-related issues, please open an issue on the [GitHub
 ## License
 
 The MIT License (MIT). Please see [License File](LICENSE) for more information.
+
+---
+
+## 🏢 Maintained by KOR Bytes S.A.S.
+
+Need enterprise Laravel development, custom fintech integrations, or SaaS solutions in Colombia and LATAM?
+
+- 🌐 Website: [kor-bytes.com](https://kor-bytes.com)
+- 💬 WhatsApp: [+57 304 397 8157](https://wa.me/573043978157)
+- ✉️ Email: [gerencia@kor-bytes.com](mailto:gerencia@kor-bytes.com)
+
