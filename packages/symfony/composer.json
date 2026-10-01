@@ -1,0 +1,49 @@
+{
+    "name": "korozcolt/payments-symfony",
+    "description": "Symfony bundle for korozcolt/payments-core: Wompi, MercadoPago and ePayco.",
+    "keywords": ["symfony", "symfony-bundle", "payments", "wompi", "mercadopago", "epayco", "colombia"],
+    "license": "MIT",
+    "type": "symfony-bundle",
+    "repositories": [
+        { "type": "path", "url": "../core", "options": { "symlink": true } }
+    ],
+    "require": {
+        "php": "^8.2",
+        "ext-pdo": "*",
+        "korozcolt/payments-core": "@dev",
+        "nyholm/psr7": "^1.8",
+        "symfony/config": "^6.4|^7.0",
+        "symfony/console": "^6.4|^7.0",
+        "symfony/dependency-injection": "^6.4|^7.0",
+        "symfony/framework-bundle": "^6.4|^7.0",
+        "symfony/http-client": "^6.4|^7.0",
+        "symfony/http-foundation": "^6.4|^7.0",
+        "symfony/http-kernel": "^6.4|^7.0",
+        "symfony/routing": "^6.4|^7.0"
+    },
+    "require-dev": {
+        "pestphp/pest": "^2.0|^3.0",
+        "symfony/browser-kit": "^6.4|^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Korbytes\\Payments\\Symfony\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Korbytes\\Payments\\Symfony\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "pest"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
