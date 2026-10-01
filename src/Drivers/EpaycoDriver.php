@@ -47,7 +47,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
      * flujo-de-pago-de-proveedores / flujo-de-pago-de-nómina, mapped to our
      * own PayoutStatus.
      */
-    protected const array PAYOUT_STATUS_MAP = [
+    protected const PAYOUT_STATUS_MAP = [
         'SIN_PROCESAR' => PayoutStatus::Pending,
         'PENDIENTE' => PayoutStatus::Processing,
         'ACEPTADO' => PayoutStatus::Completed,
@@ -70,7 +70,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
      * 11 = Cancelled
      * 12 = Antifraud
      */
-    protected const array STATUS_MAP = [
+    protected const STATUS_MAP = [
         1 => PaymentStatus::Approved,
         2 => PaymentStatus::Rejected,
         3 => PaymentStatus::Pending,
@@ -86,7 +86,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
     /**
      * Map ePayco text statuses to codes.
      */
-    protected const array TEXT_STATUS_MAP = [
+    protected const TEXT_STATUS_MAP = [
         'Aceptada' => 1,
         'Rechazada' => 2,
         'Pendiente' => 3,
