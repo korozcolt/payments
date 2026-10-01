@@ -38,17 +38,19 @@ class PaymentGateway extends Model
         'metadata',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'provider' => PaymentProvider::class,
-            'is_active' => 'boolean',
-            'is_sandbox' => 'boolean',
-            'credentials' => AsEncryptedArrayObject::class,
-            'metadata' => 'array',
-            'sort_order' => 'integer',
-        ];
-    }
+    /**
+     * Attribute casts. A property (not the Laravel 11+ casts() method) so it works on Laravel 10 too.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'provider' => PaymentProvider::class,
+        'is_active' => 'boolean',
+        'is_sandbox' => 'boolean',
+        'credentials' => AsEncryptedArrayObject::class,
+        'metadata' => 'array',
+        'sort_order' => 'integer',
+    ];
 
     // Relationships
 

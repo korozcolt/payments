@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-10-01
+
+Patch release: compatibility fixes only, no API changes.
+
+### Fixed
+- **PHP 8.2**: the drivers used typed class constants (`protected const array`), which is PHP 8.3 syntax, although `composer.json` declares `php ^8.2`. The package failed to parse on PHP 8.2 (present since 2.0.0).
+- **Laravel 10**: models declared their casts with the Laravel 11-only `casts()` method, so JSON/enum attributes were not cast on Laravel 10. They now use the `$casts` property, which works on every supported version.
+- **Laravel 10 + SQLite**: `down()` of the two `ALTER TABLE` migrations no longer throws (SQLite on Laravel 10 cannot drop foreign keys or columns without doctrine/dbal).
+- `guzzlehttp/guzzle` (^7.5) is now a declared dependency: Laravel's HTTP client needs it and Laravel 10 does not install it by default.
+
 ## [2.0.1] - 2026-07-25
 
 ### Fixed

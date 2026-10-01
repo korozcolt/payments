@@ -59,21 +59,23 @@ class Subscription extends Model
         'metadata',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'provider' => PaymentProvider::class,
-            'status' => SubscriptionStatus::class,
-            'trial_ends_at' => 'datetime',
-            'next_billing_date' => 'datetime',
-            'started_at' => 'datetime',
-            'cancelled_at' => 'datetime',
-            'last_charged_at' => 'datetime',
-            'failed_charge_attempts' => 'integer',
-            'provider_response' => 'array',
-            'metadata' => 'array',
-        ];
-    }
+    /**
+     * Attribute casts. A property (not the Laravel 11+ casts() method) so it works on Laravel 10 too.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'provider' => PaymentProvider::class,
+        'status' => SubscriptionStatus::class,
+        'trial_ends_at' => 'datetime',
+        'next_billing_date' => 'datetime',
+        'started_at' => 'datetime',
+        'cancelled_at' => 'datetime',
+        'last_charged_at' => 'datetime',
+        'failed_charge_attempts' => 'integer',
+        'provider_response' => 'array',
+        'metadata' => 'array',
+    ];
 
     protected static function booted(): void
     {
