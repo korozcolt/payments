@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b9123c8b72fe6f28abd6d38c326b1129",
+    "content-hash": "fbf763cfa3208d448975e9538b66f809",
     "packages": [
         {
             "name": "brick/math",
@@ -1051,6 +1051,64 @@
                 }
             ],
             "time": "2025-08-22T14:27:06+00:00"
+        },
+        {
+            "name": "korozcolt/payments-core",
+            "version": "dev-feat/framework-agnostic-core",
+            "dist": {
+                "type": "path",
+                "url": "packages/core",
+                "reference": "46b083b5d63bb7fa2c99adf458ea7b63eab30a17"
+            },
+            "require": {
+                "mercadopago/dx-php": "^3.0",
+                "nesbot/carbon": "^2.67|^3.0",
+                "php": "^8.2",
+                "psr/clock": "^1.0",
+                "psr/event-dispatcher": "^1.0",
+                "psr/http-client": "^1.0",
+                "psr/http-factory": "^1.0",
+                "psr/http-message": "^1.0|^2.0",
+                "psr/log": "^1.1|^2.0|^3.0"
+            },
+            "require-dev": {
+                "pestphp/pest": "^2.0|^3.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Korbytes\\Payments\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Korbytes\\Payments\\Core\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "pest"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Framework-agnostic core of korozcolt/payments: Wompi, MercadoPago and ePayco drivers for any PHP project.",
+            "homepage": "https://github.com/korozcolt/payments",
+            "keywords": [
+                "colombia",
+                "epayco",
+                "framework-agnostic",
+                "mercadopago",
+                "payment-gateway",
+                "payments",
+                "psr-18",
+                "wompi"
+            ],
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
         },
         {
             "name": "laravel/framework",
@@ -10030,7 +10088,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "korozcolt/payments-core": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
