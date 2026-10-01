@@ -1,0 +1,41 @@
+{
+    "name": "korozcolt/payments-codeigniter4",
+    "description": "CodeIgniter 4 adapter for korozcolt/payments-core: Wompi, MercadoPago and ePayco.",
+    "keywords": ["codeigniter4", "payments", "wompi", "mercadopago", "epayco", "colombia"],
+    "license": "MIT",
+    "type": "library",
+    "repositories": [
+        { "type": "path", "url": "../core", "options": { "symlink": true } }
+    ],
+    "require": {
+        "php": "^8.2",
+        "ext-pdo": "*",
+        "codeigniter4/framework": "^4.5",
+        "guzzlehttp/guzzle": "^7.5",
+        "korozcolt/payments-core": "@dev"
+    },
+    "require-dev": {
+        "pestphp/pest": "^2.0|^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Korbytes\\Payments\\CodeIgniter\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Korbytes\\Payments\\CodeIgniter\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "pest"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
