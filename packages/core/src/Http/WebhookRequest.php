@@ -67,6 +67,39 @@ final class WebhookRequest
         return new self(is_array($payload) ? $payload : [], $headers, $query, $raw);
     }
 
+    /**
+     * Build from PHP superglobals, for plain-PHP webhook endpoints.
+     *
+     * The body is decoded as JSON when possible, otherwise taken from $_POST
+     * (ePayco posts form fields), and the query string is merged in like Laravel's all().
+     *
+     * @param  array<string, mixed>|null  $server  defaults to $_SERVER
+     * @param  array<string, mixed>|null  $query  defaults to $_GET
+     * @param  array<string, mixed>|null  $post  defaults to $_POST
+     * @param  string|null  $rawBody  defaults to php://input
+     */
+    public static function fromGlobals(?array $server = null, ?array $query = null, ?array $post = null, ?string $rawBody = null): self
+    {
+        $server ??= $_SERVER;
+        $query ??= $_GET;
+        $post ??= $_POST;
+        $rawBody ??= (string) file_get_contents('php://input');
+
+        $headers = [];
+        foreach ($server as $key => $value) {
+            if (str_starts_with((string) $key, 'HTTP_')) {
+                $headers[str_replace('_', '-', substr((string) $key, 5))] = (string) $value;
+            } elseif (in_array($key, ['CONTENT_TYPE', 'CONTENT_LENGTH'], true) && $value !== '') {
+                $headers[str_replace('_', '-', (string) $key)] = (string) $value;
+            }
+        }
+
+        $decoded = $rawBody !== '' ? json_decode($rawBody, true) : null;
+        $payload = is_array($decoded) ? $decoded : $post;
+
+        return new self($query + $payload, $headers, $query, $rawBody);
+    }
+
     public static function fromPsr7(ServerRequestInterface $request): self
     {
         $raw = (string) $request->getBody();

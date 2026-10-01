@@ -4,7 +4,7 @@
 [![Total Downloads](https://img.shields.io/packagist/dt/korozcolt/payments.svg?style=flat-square)](https://packagist.org/packages/korozcolt/payments)
 [![License](https://img.shields.io/packagist/l/korozcolt/payments.svg?style=flat-square)](https://packagist.org/packages/korozcolt/payments)
 
-A unified payment gateway package for Laravel supporting **Wompi**, **MercadoPago**, and **ePayco**. Designed for Colombian and Latin American markets.
+A unified payment gateway package for Laravel (with a [framework-agnostic core](packages/core/README.md) for any other PHP project) supporting **Wompi**, **MercadoPago**, and **ePayco**. Designed for Colombian and Latin American markets.
 
 ## Features
 
@@ -30,6 +30,10 @@ Refund, subscription, and payout support genuinely differ per provider's own API
 
 - PHP 8.2+
 - Laravel 10, 11, 12, or 13
+
+### Not using Laravel?
+
+The gateway logic lives in a framework-agnostic core, [`korozcolt/payments-core`](packages/core/README.md), usable from Symfony, CodeIgniter 4, Slim or plain PHP with only a PSR-18 HTTP client and a PDO connection. See the [standalone guide](packages/core/README.md) and the runnable [`examples/standalone`](examples/standalone). This Laravel package is a thin adapter on top of that core.
 
 ## Installation
 
