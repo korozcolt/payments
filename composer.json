@@ -34,7 +34,7 @@
         "illuminate/http": "^10.0|^11.0|^12.0|^13.0",
         "illuminate/routing": "^10.0|^11.0|^12.0|^13.0",
         "illuminate/support": "^10.0|^11.0|^12.0|^13.0",
-        "korozcolt/payments-core": "@dev",
+        "korozcolt/payments-core": "^1.0",
         "mercadopago/dx-php": "^3.0"
     },
     "require-dev": {
@@ -77,13 +77,5 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true,
-    "repositories": [{
-        "name": "core",
-        "type": "path",
-        "url": "packages/core",
-        "options": {
-            "symlink": true
-        }
-    }]
+    "prefer-stable": true
 }

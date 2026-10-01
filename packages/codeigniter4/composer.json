@@ -4,15 +4,12 @@
     "keywords": ["codeigniter4", "payments", "wompi", "mercadopago", "epayco", "colombia"],
     "license": "MIT",
     "type": "library",
-    "repositories": [
-        { "type": "path", "url": "../core", "options": { "symlink": true } }
-    ],
     "require": {
         "php": "^8.2",
         "ext-pdo": "*",
         "codeigniter4/framework": "^4.5",
         "guzzlehttp/guzzle": "^7.5",
-        "korozcolt/payments-core": "@dev"
+        "korozcolt/payments-core": "^1.0"
     },
     "require-dev": {
         "pestphp/pest": "^2.0|^3.0"
@@ -36,6 +33,5 @@
             "pestphp/pest-plugin": true
         }
     },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    "minimum-stability": "stable"
 }

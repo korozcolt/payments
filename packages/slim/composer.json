@@ -4,12 +4,9 @@
     "keywords": ["slim", "psr-15", "payments", "wompi", "mercadopago", "epayco", "colombia"],
     "license": "MIT",
     "type": "library",
-    "repositories": [
-        { "type": "path", "url": "../core", "options": { "symlink": true } }
-    ],
     "require": {
         "php": "^8.2",
-        "korozcolt/payments-core": "@dev",
+        "korozcolt/payments-core": "^1.0",
         "psr/http-message": "^1.0|^2.0",
         "psr/http-server-handler": "^1.0"
     },
@@ -37,6 +34,5 @@
             "pestphp/pest-plugin": true
         }
     },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    "minimum-stability": "stable"
 }

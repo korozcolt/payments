@@ -4,13 +4,10 @@
     "keywords": ["symfony", "symfony-bundle", "payments", "wompi", "mercadopago", "epayco", "colombia"],
     "license": "MIT",
     "type": "symfony-bundle",
-    "repositories": [
-        { "type": "path", "url": "../core", "options": { "symlink": true } }
-    ],
     "require": {
         "php": "^8.2",
         "ext-pdo": "*",
-        "korozcolt/payments-core": "@dev",
+        "korozcolt/payments-core": "^1.0",
         "nyholm/psr7": "^1.8",
         "symfony/config": "^6.4|^7.0",
         "symfony/console": "^6.4|^7.0",
@@ -44,6 +41,5 @@
             "pestphp/pest-plugin": true
         }
     },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    "minimum-stability": "stable"
 }
