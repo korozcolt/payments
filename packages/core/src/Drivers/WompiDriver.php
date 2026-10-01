@@ -50,7 +50,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
      *
      * @see https://api.swaggerhub.com/apis/wompi/Payouts/1.0.0
      */
-    protected const array PAYOUT_STATUS_MAP = [
+    protected const PAYOUT_STATUS_MAP = [
         'PENDING' => PayoutStatus::Pending,
         'READY_TO_FILE' => PayoutStatus::Pending,
         'ADDED_TO_FILE' => PayoutStatus::Pending,
@@ -65,7 +65,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
     /**
      * Map Wompi transaction statuses to internal statuses.
      */
-    protected const array STATUS_MAP = [
+    protected const STATUS_MAP = [
         'PENDING' => PaymentStatus::Pending,
         'APPROVED' => PaymentStatus::Approved,
         'DECLINED' => PaymentStatus::Rejected,

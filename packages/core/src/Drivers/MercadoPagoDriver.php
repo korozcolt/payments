@@ -47,7 +47,7 @@ class MercadoPagoDriver extends AbstractDriver
     /**
      * Map MercadoPago payment statuses to internal statuses.
      */
-    protected const array STATUS_MAP = [
+    protected const STATUS_MAP = [
         'pending' => PaymentStatus::Pending,
         'approved' => PaymentStatus::Approved,
         'authorized' => PaymentStatus::Pending,
