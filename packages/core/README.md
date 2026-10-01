@@ -66,7 +66,7 @@ use Korbytes\Payments\Core\Events\PaymentApproved;
 $payments->events()->listen(PaymentApproved::class, fn (PaymentApproved $e) => markOrderPaid($e->transaction->reference_id));
 ```
 
-A complete runnable example lives in [`examples/standalone`](../../examples/standalone) (`composer install && php demo.php`).
+A complete runnable example lives in [`examples/standalone`](https://github.com/korozcolt/payments/tree/master/examples/standalone) (`composer install && php demo.php`).
 
 ## Architecture
 
@@ -88,4 +88,4 @@ Implementing your own persistence (Doctrine, CodeIgniter models, ...) means impl
 
 - **Timeouts**: PSR-18 has no timeout concept; configure it on your client (e.g. Guzzle `timeout => 30`).
 - **Subscriptions** for providers without a billing engine (Wompi): call `$payments->scheduler()->processDue()` from cron.
-- Provider capabilities (refunds, subscriptions, payouts) differ per provider — see the main [USAGE.md](../../USAGE.md).
+- Provider capabilities (refunds, subscriptions, payouts) differ per provider — see the main [USAGE.md](https://github.com/korozcolt/payments/blob/master/USAGE.md).

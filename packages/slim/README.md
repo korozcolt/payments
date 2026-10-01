@@ -1,6 +1,6 @@
 # korozcolt/payments-slim
 
-Slim 4 / PSR-15 adapter for [`korozcolt/payments-core`](../core/README.md): **Wompi**, **MercadoPago** and **ePayco**.
+Slim 4 / PSR-15 adapter for [`korozcolt/payments-core`](https://github.com/korozcolt/payments-core#readme): **Wompi**, **MercadoPago** and **ePayco**.
 
 ```bash
 composer require korozcolt/payments-slim korozcolt/payments-core guzzlehttp/guzzle slim/slim slim/psr7

@@ -1,6 +1,6 @@
 # korozcolt/payments-codeigniter4
 
-CodeIgniter 4 adapter for [`korozcolt/payments-core`](../core/README.md): **Wompi**, **MercadoPago** and **ePayco** with one API.
+CodeIgniter 4 adapter for [`korozcolt/payments-core`](https://github.com/korozcolt/payments-core#readme): **Wompi**, **MercadoPago** and **ePayco** with one API.
 Install, migrate, configure through `.env`. Everything else is auto-discovered by CodeIgniter.
 
 Verified against a fresh `codeigniter4/appstarter` (v4.7): migration, route, Spark command, `service('payments')`, signed webhook over HTTP and `Events::on()` listeners.

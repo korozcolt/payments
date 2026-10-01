@@ -1,6 +1,6 @@
 # korozcolt/payments-symfony
 
-Symfony bundle for [`korozcolt/payments-core`](../core/README.md): **Wompi**, **MercadoPago** and **ePayco**.
+Symfony bundle for [`korozcolt/payments-core`](https://github.com/korozcolt/payments-core#readme): **Wompi**, **MercadoPago** and **ePayco**.
 
 Tested against Symfony 7.4 with a real kernel: bundle configuration, schema command, HTTP webhooks (400/401/200/405), PSR-14 events through `event_dispatcher`, console command.
 
