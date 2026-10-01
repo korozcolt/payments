@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Targets **2.1.0** (Laravel package) together with **`korozcolt/payments-core` 1.0.0** and three new adapters. See [#16](https://github.com/korozcolt/payments/issues/16) and `docs/plans/16-framework-agnostic-core.md`.
+## [2.1.0] - 2026-10-01
+
+Released together with **`korozcolt/payments-core` 1.0.0** and the adapters `payments-codeigniter4`, `payments-slim` and `payments-symfony` 1.0.0. See [#16](https://github.com/korozcolt/payments/issues/16) and `docs/plans/16-framework-agnostic-core.md`.
 
 ### Added
-- **Framework-agnostic core** (`packages/core`, published as `korozcolt/payments-core`): the Wompi, MercadoPago and ePayco drivers, DTOs, enums, exceptions, the manager, the webhook endpoint logic (`WebhookHandler`) and the subscription scheduler now live in a package with **no Laravel dependency** (enforced by a test and a CI job). It depends only on PSR-18/17 (HTTP), PSR-3 (logging), PSR-14 (events) and PSR-20 (clock), plus repository ports for persistence.
+- **Framework-agnostic core** (`packages/core`, published as [`korozcolt/payments-core`](https://github.com/korozcolt/payments-core)): the Wompi, MercadoPago and ePayco drivers, DTOs, enums, exceptions, the manager, the webhook endpoint logic (`WebhookHandler`) and the subscription scheduler now live in a package with **no Laravel dependency** (enforced by a test and a CI job). It depends only on PSR-18/17 (HTTP), PSR-3 (logging), PSR-14 (events) and PSR-20 (clock), plus repository ports for persistence.
 - `Standalone::pdo()` wires the core for plain PHP from a PSR-18 client and a PDO connection; bundled PDO repositories and `schema.{sqlite,mysql,pgsql}.sql` use the same tables as the Laravel migrations. Runnable example in `examples/standalone`.
 - **Adapters** (monorepo packages): `korozcolt/payments-codeigniter4` (verified on a fresh `codeigniter4/appstarter`), `korozcolt/payments-slim` (PSR-15) and `korozcolt/payments-symfony` (bundle, tested with a real kernel). All answer webhooks identically (`400` unknown/unavailable provider, `401` bad signature, `200` processed, `500` unexpected error).
 - Characterization tests for the webhook HTTP contract and event payloads; phpstan (Larastan, level 5, with a baseline); GitHub Actions matrix (Laravel 10-13, core without Laravel, adapters, static analysis).

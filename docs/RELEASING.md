@@ -1,28 +1,39 @@
 # Releasing the core and adapters
 
-The monorepo holds one Laravel package (repo root) and four sub-packages. They are published
-as separate Composer packages; development uses `path` repositories so everything is tested together.
+The monorepo holds one Laravel package (repo root) and four sub-packages. Each sub-package is
+published as its own read-only repository + Packagist package; the root is `korozcolt/payments`.
 
-| Directory | Package | Depends on |
+| Directory | Repository / Packagist package | Depends on |
 |---|---|---|
-| `packages/core` | `korozcolt/payments-core` | PSR interfaces only |
-| `packages/codeigniter4` | `korozcolt/payments-codeigniter4` | core, codeigniter4/framework, guzzle |
-| `packages/slim` | `korozcolt/payments-slim` | core |
-| `packages/symfony` | `korozcolt/payments-symfony` | core, symfony/* |
-| `.` (root) | `korozcolt/payments` | core, illuminate/* |
+| `packages/core` | [`korozcolt/payments-core`](https://github.com/korozcolt/payments-core) | PSR interfaces only |
+| `packages/codeigniter4` | [`korozcolt/payments-codeigniter4`](https://github.com/korozcolt/payments-codeigniter4) | core ^1.0, codeigniter4/framework, guzzle |
+| `packages/slim` | [`korozcolt/payments-slim`](https://github.com/korozcolt/payments-slim) | core ^1.0 |
+| `packages/symfony` | [`korozcolt/payments-symfony`](https://github.com/korozcolt/payments-symfony) | core ^1.0, symfony/* |
+| `.` (root) | [`korozcolt/payments`](https://github.com/korozcolt/payments) | core ^1.0, illuminate/* |
 
-## One-time setup
+Everything resolves the core from Packagist (`^1.0`); there are no path repositories left in any `composer.json`.
+To hack on the core and an adapter together, use a temporary path repository locally and do not commit it.
 
-1. Create read-only split repositories on GitHub: `payments-core`, `payments-codeigniter4`, `payments-slim`, `payments-symfony`.
-2. Register each on Packagist.
-3. Add a subtree-split workflow (e.g. `symplify/monorepo-split-github-action`) that pushes `packages/<name>` to its repository on every tag, with a token secret that can write to those repositories.
+## Publishing a change to a sub-package
 
-## Per release
+The split repositories are produced with `git subtree split` from this monorepo (history is preserved
+and the split is deterministic, so later splits are descendants of earlier ones):
 
-1. Make sure CI is green (`.github/workflows/tests.yml`: Laravel 10-13 matrix, core without Laravel, adapters, static analysis).
-2. **Release order matters** — the core first, because everything else requires it:
-   1. Tag `payments-core` `v1.0.0`.
-   2. In every package that has `"korozcolt/payments-core": "@dev"`, replace it with `"^1.0"` **and delete the `repositories` path entry** (root `composer.json`, `packages/codeigniter4`, `packages/slim`, `packages/symfony`, `examples/standalone`). Run `composer update` and the test suites against the published core.
-   3. Tag the adapters and the root package (`v2.1.0`).
-3. Update `CHANGELOG.md` (move `[Unreleased]` to the new version).
-4. Do not publish with `@dev` constraints or path repositories still in a `composer.json`.
+```bash
+# example for the core; same for codeigniter4 / slim / symfony
+git subtree split --prefix=packages/core -b split/core
+git push https://github.com/korozcolt/payments-core.git split/core:main
+gh release create vX.Y.Z -R korozcolt/payments-core --target main
+```
+
+Packagist picks up new tags automatically (GitHub hook enabled).
+
+## Order matters
+
+1. Release `payments-core` first (everything requires it).
+2. If the core's public API changed, bump the `^x.y` constraint in the adapters and the root, run all suites, then release the adapters.
+3. Release the root (`korozcolt/payments`) last and update `CHANGELOG.md`.
+
+## Checks before any release
+
+CI (`.github/workflows/tests.yml`) must be green: Laravel 10-13 matrix, core without Laravel, the three adapters on PHP 8.2 and 8.4, and static analysis.
