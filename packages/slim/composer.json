@@ -1,0 +1,42 @@
+{
+    "name": "korozcolt/payments-slim",
+    "description": "Slim 4 / PSR-15 adapter for korozcolt/payments-core: Wompi, MercadoPago and ePayco webhooks and checkout.",
+    "keywords": ["slim", "psr-15", "payments", "wompi", "mercadopago", "epayco", "colombia"],
+    "license": "MIT",
+    "type": "library",
+    "repositories": [
+        { "type": "path", "url": "../core", "options": { "symlink": true } }
+    ],
+    "require": {
+        "php": "^8.2",
+        "korozcolt/payments-core": "@dev",
+        "psr/http-message": "^1.0|^2.0",
+        "psr/http-server-handler": "^1.0"
+    },
+    "require-dev": {
+        "pestphp/pest": "^2.0|^3.0",
+        "slim/psr7": "^1.6",
+        "slim/slim": "^4.12"
+    },
+    "autoload": {
+        "psr-4": {
+            "Korbytes\\Payments\\Slim\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Korbytes\\Payments\\Slim\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "pest"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

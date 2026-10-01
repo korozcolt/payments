@@ -14,6 +14,11 @@ final class Arr
      */
     public static function get(array|object $target, string $key, mixed $default = null): mixed
     {
+        // Like Laravel: a literal key containing dots wins over nested lookup.
+        if (is_array($target) && array_key_exists($key, $target)) {
+            return $target[$key];
+        }
+
         foreach (explode('.', $key) as $segment) {
             if (is_array($target) && array_key_exists($segment, $target)) {
                 $target = $target[$segment];

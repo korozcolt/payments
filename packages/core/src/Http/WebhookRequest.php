@@ -109,7 +109,14 @@ final class WebhookRequest
 
         if (! is_array($parsed)) {
             $decoded = $raw !== '' ? json_decode($raw, true) : null;
-            $parsed = is_array($decoded) ? $decoded : [];
+
+            if (is_array($decoded)) {
+                $parsed = $decoded;
+            } elseif ($raw !== '' && str_contains(strtolower($request->getHeaderLine('Content-Type')), 'application/x-www-form-urlencoded')) {
+                parse_str($raw, $parsed);
+            } else {
+                $parsed = [];
+            }
         }
 
         $headers = [];

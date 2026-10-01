@@ -9,13 +9,14 @@ use Korbytes\Payments\Support\EventDispatcher;
 it('builds a WebhookRequest from superglobals with a JSON body', function () {
     $request = WebhookRequest::fromGlobals(
         server: ['HTTP_X_SIGNATURE' => 'sig', 'HTTP_X_REQUEST_ID' => 'r1', 'CONTENT_TYPE' => 'application/json', 'SERVER_NAME' => 'x'],
-        query: ['data.id' => '9'],
+        query: ['page' => '2'],
         post: [],
         rawBody: '{"type":"payment","data":{"id":"123"}}',
     );
 
     expect($request->all()['type'])->toBe('payment')
         ->and($request->input('data.id'))->toBe('123')
+        ->and($request->input('page'))->toBe('2')
         ->and($request->header('x-signature'))->toBe('sig')
         ->and($request->header('X-Request-Id'))->toBe('r1')
         ->and($request->header('content-type'))->toBe('application/json')
