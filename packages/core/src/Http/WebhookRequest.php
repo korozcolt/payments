@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments\Http;
 
+use Korbytes\Payments\Support\Arr;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
@@ -31,6 +32,39 @@ final class WebhookRequest
         foreach ($headers as $name => $value) {
             $this->headers[strtolower((string) $name)] = is_array($value) ? implode(', ', $value) : (string) $value;
         }
+    }
+
+    /**
+     * Normalise whatever the host framework hands over.
+     *
+     * Accepts a WebhookRequest, a PSR-7 server request, or any request object that
+     * exposes the Illuminate/Symfony-style surface (all(), getContent(), headers, query).
+     */
+    public static function from(object $request): self
+    {
+        if ($request instanceof self) {
+            return $request;
+        }
+
+        if ($request instanceof ServerRequestInterface) {
+            return self::fromPsr7($request);
+        }
+
+        $payload = method_exists($request, 'all')
+            ? $request->all()
+            : (isset($request->request) && is_object($request->request) && method_exists($request->request, 'all') ? $request->request->all() : []);
+
+        $headers = isset($request->headers) && is_object($request->headers) && method_exists($request->headers, 'all')
+            ? $request->headers->all()
+            : [];
+
+        $query = isset($request->query) && is_object($request->query) && method_exists($request->query, 'all')
+            ? $request->query->all()
+            : [];
+
+        $raw = method_exists($request, 'getContent') ? (string) $request->getContent() : '';
+
+        return new self(is_array($payload) ? $payload : [], $headers, $query, $raw);
     }
 
     public static function fromPsr7(ServerRequestInterface $request): self
@@ -63,7 +97,10 @@ final class WebhookRequest
 
     public function input(string $key, mixed $default = null): mixed
     {
-        return $this->payload[$key] ?? $this->query[$key] ?? $default;
+        // Dot notation ("data.id") searches the body first, then the query string.
+        $value = Arr::get($this->payload, $key);
+
+        return $value ?? Arr::get($this->query, $key, $default);
     }
 
     /**

@@ -4,8 +4,20 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments;
 
+use GuzzleHttp\Psr7\HttpFactory;
 use Illuminate\Support\ServiceProvider;
 use Korbytes\Payments\Console\Commands\ProcessDueSubscriptionsCommand;
+use Korbytes\Payments\Drivers\DriverContext;
+use Korbytes\Payments\Http\HttpClient;
+use Korbytes\Payments\Support\EloquentPayoutRepository;
+use Korbytes\Payments\Support\EloquentSubscriptionRepository;
+use Korbytes\Payments\Support\EloquentTransactionRepository;
+use Korbytes\Payments\Support\LaravelConfigProvider;
+use Korbytes\Payments\Support\LaravelEventBridge;
+use Korbytes\Payments\Support\LaravelHttpClient;
+use Korbytes\Payments\Support\LaravelLogger;
+use Korbytes\Payments\Support\LaravelTransactionRunner;
+use Korbytes\Payments\Support\SystemClock;
 
 class PaymentsServiceProvider extends ServiceProvider
 {
@@ -18,6 +30,23 @@ class PaymentsServiceProvider extends ServiceProvider
             __DIR__.'/../config/payments.php',
             'payments'
         );
+
+        // Wires the framework-agnostic core (packages/core) to Laravel.
+        $this->app->singleton(DriverContext::class, function () {
+            $factory = new HttpFactory;
+
+            return new DriverContext(
+                http: new HttpClient(new LaravelHttpClient, $factory, $factory),
+                logger: new LaravelLogger,
+                settings: new LaravelConfigProvider,
+                transactions: new EloquentTransactionRepository,
+                subscriptions: new EloquentSubscriptionRepository,
+                payouts: new EloquentPayoutRepository,
+                runner: new LaravelTransactionRunner,
+                events: new LaravelEventBridge,
+                clock: new SystemClock,
+            );
+        });
 
         $this->app->singleton('payments', function ($app) {
             return new PaymentManager;

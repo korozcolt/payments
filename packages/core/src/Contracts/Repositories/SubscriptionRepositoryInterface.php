@@ -19,6 +19,10 @@ interface SubscriptionRepositoryInterface
      */
     public function create(array $attributes): SubscriptionRecord;
 
+    public function findByProviderSubscriptionId(string $providerSubscriptionId): ?SubscriptionRecord;
+
+    public function findByReferenceId(string $referenceId): ?SubscriptionRecord;
+
     /**
      * Active subscriptions whose next billing date has passed, limited to the given providers.
      *

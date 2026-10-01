@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments\Drivers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
+use Korbytes\Payments\Contracts\Records\PayoutRecord;
+use Korbytes\Payments\Contracts\Records\SubscriptionRecord;
+use Korbytes\Payments\Contracts\Records\TransactionRecord;
+use Korbytes\Payments\Http\WebhookRequest;
 use Korbytes\Payments\Contracts\PayoutDriverInterface;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
@@ -25,21 +25,16 @@ use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Enums\PaymentStatus;
 use Korbytes\Payments\Enums\PayoutStatus;
 use Korbytes\Payments\Enums\SubscriptionStatus;
-use Korbytes\Payments\Events\PaymentApproved;
-use Korbytes\Payments\Events\PaymentCreated;
-use Korbytes\Payments\Events\PaymentRefunded;
-use Korbytes\Payments\Events\PaymentRejected;
-use Korbytes\Payments\Events\SubscriptionCancelled;
-use Korbytes\Payments\Events\SubscriptionChargeFailed;
-use Korbytes\Payments\Events\SubscriptionChargeSucceeded;
-use Korbytes\Payments\Events\SubscriptionCreated;
-use Korbytes\Payments\Events\WebhookReceived;
+use Korbytes\Payments\Core\Events\PaymentApproved;
+use Korbytes\Payments\Core\Events\PaymentCreated;
+use Korbytes\Payments\Core\Events\PaymentRefunded;
+use Korbytes\Payments\Core\Events\PaymentRejected;
+use Korbytes\Payments\Core\Events\SubscriptionCancelled;
+use Korbytes\Payments\Core\Events\SubscriptionChargeFailed;
+use Korbytes\Payments\Core\Events\SubscriptionChargeSucceeded;
+use Korbytes\Payments\Core\Events\SubscriptionCreated;
+use Korbytes\Payments\Core\Events\WebhookReceived;
 use Korbytes\Payments\Exceptions\InvalidWebhookSignatureException;
-use Korbytes\Payments\Models\PaymentTransaction;
-use Korbytes\Payments\Models\Payout;
-use Korbytes\Payments\Models\PayoutBeneficiary;
-use Korbytes\Payments\Models\Subscription;
-use Korbytes\Payments\Models\SubscriptionPlan;
 
 /**
  * Wompi Payment Driver Implementation.
@@ -115,16 +110,16 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
         ]);
 
         // Create transaction record
-        $transaction = DB::transaction(function () use ($paymentData) {
-            return PaymentTransaction::create([
+        $transaction = $this->ctx->runner->run(function () use ($paymentData) {
+            return $this->ctx->transactions->create([
                 'reference_id' => $paymentData->referenceId,
                 'provider' => PaymentProvider::Wompi,
                 'amount' => $paymentData->amount,
                 'currency' => $paymentData->currency,
                 'status' => PaymentStatus::Pending,
-                'idempotency_key' => (string) Str::uuid(),
+                'idempotency_key' => $this->uuid(),
                 'metadata' => $paymentData->metadata,
-                'initiated_at' => now(),
+                'initiated_at' => $this->now(),
             ]);
         });
 
@@ -135,7 +130,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
             currency: $paymentData->currency,
         );
 
-        $redirectUrl = $paymentData->returnUrl ?? config('payments.urls.return');
+        $redirectUrl = $paymentData->returnUrl ?? $this->setting('urls.return');
 
         $this->log('info', 'Payment intent created', [
             'transaction_id' => $transaction->id,
@@ -159,13 +154,15 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
             ],
         );
 
-        PaymentCreated::dispatch($transaction, $result);
+        $this->emit(PaymentCreated::class, $transaction, $result);
 
         return $result;
     }
 
-    public function verifyWebhookSignature(Request $request): bool
+    public function verifyWebhookSignature(object $request): bool
     {
+        $request = WebhookRequest::from($request);
+
         $payload = $request->all();
 
         $this->log('debug', 'Verifying webhook signature', [
@@ -189,7 +186,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
         $stringToHash = '';
 
         foreach ($properties as $property) {
-            $value = data_get($data, $property, '');
+            $value = \Korbytes\Payments\Support\Arr::get($data, $property, '');
             $stringToHash .= $value;
         }
 
@@ -216,8 +213,10 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
         return true;
     }
 
-    public function processWebhook(Request $request): WebhookResult
+    public function processWebhook(object $request): WebhookResult
     {
+        $request = WebhookRequest::from($request);
+
         $payload = $request->all();
 
         $this->log('info', 'Processing webhook', [
@@ -239,7 +238,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
                 rawPayload: $payload,
             );
 
-            WebhookReceived::dispatch(PaymentProvider::Wompi, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::Wompi, $result, $payload);
 
             return $result;
         }
@@ -253,7 +252,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
 
             $result = WebhookResult::notFound($reference, $payload);
 
-            WebhookReceived::dispatch(PaymentProvider::Wompi, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::Wompi, $result, $payload);
 
             return $result;
         }
@@ -266,7 +265,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
 
             $result = WebhookResult::duplicate($transaction, $payload);
 
-            WebhookReceived::dispatch(PaymentProvider::Wompi, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::Wompi, $result, $payload);
 
             return $result;
         }
@@ -274,14 +273,14 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
         $status = self::STATUS_MAP[$wompiStatus] ?? PaymentStatus::Pending;
 
         // Update transaction
-        DB::transaction(function () use ($transaction, $status, $providerTransactionId, $payload) {
+        $this->ctx->runner->run(function () use ($transaction, $status, $providerTransactionId, $payload) {
             $transaction->update([
                 'status' => $status,
                 'provider_transaction_id' => $providerTransactionId,
                 'webhook_payload' => $payload,
-                'webhook_received_at' => now(),
+                'webhook_received_at' => $this->now(),
                 'webhook_attempts' => $transaction->webhook_attempts + 1,
-                'completed_at' => $status->isFinal() ? now() : null,
+                'completed_at' => $status->isFinal() ? $this->now() : null,
             ]);
         });
 
@@ -297,13 +296,13 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
             rawPayload: $payload,
         );
 
-        WebhookReceived::dispatch(PaymentProvider::Wompi, $result, $payload);
+        $this->emit(WebhookReceived::class, PaymentProvider::Wompi, $result, $payload);
 
         // Dispatch status-specific events
         if ($status === PaymentStatus::Approved) {
-            PaymentApproved::dispatch($transaction->fresh(), $result);
+            $this->emit(PaymentApproved::class, $transaction->fresh(), $result);
         } elseif (in_array($status, [PaymentStatus::Rejected, PaymentStatus::Voided])) {
-            PaymentRejected::dispatch($transaction->fresh(), $result);
+            $this->emit(PaymentRejected::class, $transaction->fresh(), $result);
         }
 
         return $result;
@@ -315,7 +314,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
             'transaction_id' => $transactionId,
         ]);
 
-        $transaction = PaymentTransaction::find($transactionId);
+        $transaction = $this->ctx->transactions->find($transactionId);
 
         if (! $transaction) {
             return WebhookResult::failed(
@@ -350,11 +349,11 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
                 $transaction->update([
                     'status' => $status,
                     'provider_response' => $response,
-                    'completed_at' => $status->isFinal() ? now() : null,
+                    'completed_at' => $status->isFinal() ? $this->now() : null,
                 ]);
 
                 if ($status === PaymentStatus::Approved) {
-                    PaymentApproved::dispatch($transaction->fresh(), WebhookResult::success(
+                    $this->emit(PaymentApproved::class, $transaction->fresh(), WebhookResult::success(
                         transaction: $transaction->fresh(),
                         status: $status,
                         providerTransactionId: $data['id'] ?? null,
@@ -398,7 +397,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
      *
      * @see https://docs.wompi.co/en/docs/colombia/transacciones/
      */
-    public function refund(PaymentTransaction $transaction, ?int $amountInCents = null): RefundResult
+    public function refund(TransactionRecord $transaction, ?int $amountInCents = null): RefundResult
     {
         if ($amountInCents !== null && $amountInCents !== $transaction->amount) {
             return RefundResult::notSupported(
@@ -443,7 +442,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
             $transaction->update([
                 'status' => PaymentStatus::Voided,
                 'refunded_amount' => $transaction->amount,
-                'refunded_at' => now(),
+                'refunded_at' => $this->now(),
                 'provider_response' => $response,
             ]);
 
@@ -458,7 +457,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
                 rawPayload: $response,
             );
 
-            PaymentRefunded::dispatch($transaction->fresh(), $result);
+            $this->emit(PaymentRefunded::class, $transaction->fresh(), $result);
 
             return $result;
 
@@ -485,7 +484,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
      */
     public function createPlan(PlanData $data): PlanResult
     {
-        $plan = SubscriptionPlan::create([
+        $plan = $this->ctx->subscriptions->createPlan([
             'provider' => PaymentProvider::Wompi,
             'provider_plan_id' => null,
             'name' => $data->name,
@@ -554,7 +553,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
             );
         }
 
-        $subscription = Subscription::create([
+        $subscription = $this->ctx->subscriptions->create([
             'subscription_plan_id' => $data->plan->id,
             'reference_id' => $data->referenceId,
             'provider' => PaymentProvider::Wompi,
@@ -563,8 +562,8 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
             'customer_name' => $data->getCustomerName(),
             'customer_phone' => $data->getCustomerPhone(),
             'status' => SubscriptionStatus::Active,
-            'next_billing_date' => $data->plan->interval->addTo(now(), $data->plan->interval_count),
-            'started_at' => now(),
+            'next_billing_date' => $data->plan->interval->addTo($this->now(), $data->plan->interval_count),
+            'started_at' => $this->now(),
             'metadata' => $data->metadata,
             'provider_response' => $response,
         ]);
@@ -576,7 +575,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
 
         $result = SubscriptionResult::success($subscription, $response);
 
-        SubscriptionCreated::dispatch($subscription, $result);
+        $this->emit(SubscriptionCreated::class, $subscription, $result);
 
         return $result;
     }
@@ -586,17 +585,17 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
      * stops our own scheduler from billing it. The stored payment source
      * token itself is not deleted from Wompi (no confirmed delete endpoint).
      */
-    public function cancelSubscription(Subscription $subscription): SubscriptionResult
+    public function cancelSubscription(SubscriptionRecord $subscription): SubscriptionResult
     {
         $subscription->update([
             'status' => SubscriptionStatus::Cancelled,
-            'cancelled_at' => now(),
+            'cancelled_at' => $this->now(),
             'next_billing_date' => null,
         ]);
 
         $result = SubscriptionResult::success($subscription->fresh());
 
-        SubscriptionCancelled::dispatch($subscription->fresh(), $result);
+        $this->emit(SubscriptionCancelled::class, $subscription->fresh(), $result);
 
         return $result;
     }
@@ -606,7 +605,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
      * what `payments:process-subscriptions` calls for Wompi subscriptions
      * (see config('payments.subscriptions.scheduled_providers')).
      */
-    public function chargeSubscriptionCycle(Subscription $subscription): PaymentResult
+    public function chargeSubscriptionCycle(SubscriptionRecord $subscription): PaymentResult
     {
         if (! $subscription->provider_payment_source_id) {
             return PaymentResult::failed(
@@ -616,17 +615,17 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
         }
 
         $plan = $subscription->plan;
-        $cycleReferenceId = $subscription->reference_id.'-CYCLE-'.now()->format('YmdHis');
+        $cycleReferenceId = $subscription->reference_id.'-CYCLE-'.$this->now()->format('YmdHis');
 
-        $transaction = PaymentTransaction::create([
+        $transaction = $this->ctx->transactions->create([
             'subscription_id' => $subscription->id,
             'reference_id' => $cycleReferenceId,
             'provider' => PaymentProvider::Wompi,
             'amount' => $plan->amount,
             'currency' => $plan->currency,
             'status' => PaymentStatus::Pending,
-            'idempotency_key' => (string) Str::uuid(),
-            'initiated_at' => now(),
+            'idempotency_key' => $this->uuid(),
+            'initiated_at' => $this->now(),
         ]);
 
         $reference = $this->generateReference($cycleReferenceId, $transaction->id);
@@ -654,7 +653,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
 
             $subscription->update(['failed_charge_attempts' => $subscription->failed_charge_attempts + 1]);
 
-            SubscriptionChargeFailed::dispatch($subscription->fresh(), $result);
+            $this->emit(SubscriptionChargeFailed::class, $subscription->fresh(), $result);
 
             return $result;
         }
@@ -667,12 +666,12 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
             'status' => $status,
             'provider_transaction_id' => $data['id'] ?? null,
             'provider_response' => $response,
-            'completed_at' => $status->isFinal() ? now() : null,
+            'completed_at' => $status->isFinal() ? $this->now() : null,
         ]);
 
         $subscription->update([
-            'last_charged_at' => now(),
-            'next_billing_date' => $plan->interval->addTo(now(), $plan->interval_count),
+            'last_charged_at' => $this->now(),
+            'next_billing_date' => $plan->interval->addTo($this->now(), $plan->interval_count),
             'failed_charge_attempts' => $status === PaymentStatus::Approved ? 0 : $subscription->failed_charge_attempts + 1,
         ]);
 
@@ -688,9 +687,9 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
         );
 
         if ($status === PaymentStatus::Approved) {
-            SubscriptionChargeSucceeded::dispatch($subscription->fresh(), $result);
+            $this->emit(SubscriptionChargeSucceeded::class, $subscription->fresh(), $result);
         } else {
-            SubscriptionChargeFailed::dispatch($subscription->fresh(), $result);
+            $this->emit(SubscriptionChargeFailed::class, $subscription->fresh(), $result);
         }
 
         return $result;
@@ -706,7 +705,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
      */
     public function registerBeneficiary(PayoutBeneficiaryData $data): PayoutBeneficiaryResult
     {
-        $beneficiary = PayoutBeneficiary::create([
+        $beneficiary = $this->ctx->payouts->createBeneficiary([
             'provider' => PaymentProvider::Wompi,
             'provider_beneficiary_id' => null,
             'name' => $data->name,
@@ -745,7 +744,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
 
         $beneficiary = $data->beneficiary;
 
-        $payout = Payout::create([
+        $payout = $this->ctx->payouts->create([
             'payout_beneficiary_id' => $beneficiary->id,
             'reference_id' => $data->referenceId,
             'provider' => PaymentProvider::Wompi,
@@ -762,7 +761,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
         };
 
         try {
-            $response = Http::withHeaders($this->payoutHeaders())
+            $response = $this->ctx->http->withHeaders($this->payoutHeaders())
                 ->timeout(30)
                 ->post($this->getPayoutBaseUrl().'/payouts', [
                     'reference' => $data->referenceId,
@@ -811,7 +810,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
         return PayoutResult::success($payout->fresh(), $body);
     }
 
-    public function queryPayoutStatus(Payout $payout): PayoutResult
+    public function queryPayoutStatus(PayoutRecord $payout): PayoutResult
     {
         if (! $payout->provider_payout_id) {
             return PayoutResult::failed(
@@ -822,7 +821,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
         }
 
         try {
-            $response = Http::withHeaders($this->payoutHeaders())
+            $response = $this->ctx->http->withHeaders($this->payoutHeaders())
                 ->timeout(30)
                 ->get($this->getPayoutBaseUrl()."/payouts/{$payout->provider_payout_id}");
         } catch (\Exception $e) {
@@ -846,7 +845,7 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
         $payout->update([
             'status' => $status,
             'provider_response' => $body,
-            'processed_at' => $status->isFinal() ? now() : null,
+            'processed_at' => $status->isFinal() ? $this->now() : null,
         ]);
 
         return PayoutResult::success($payout->fresh(), $body);
@@ -904,12 +903,12 @@ class WompiDriver extends AbstractDriver implements PayoutDriverInterface
     /**
      * Find a transaction by its reference.
      */
-    protected function findTransactionByReference(string $reference): ?PaymentTransaction
+    protected function findTransactionByReference(string $reference): ?TransactionRecord
     {
         $parsed = $this->parseReference($reference);
 
         if ($parsed['transaction_id']) {
-            return PaymentTransaction::find($parsed['transaction_id']);
+            return $this->ctx->transactions->find($parsed['transaction_id']);
         }
 
         return null;

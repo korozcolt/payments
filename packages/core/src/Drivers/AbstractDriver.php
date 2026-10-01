@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments\Drivers;
 
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
+use Carbon\CarbonImmutable;
 use Korbytes\Payments\Contracts\PaymentDriverInterface;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Exceptions\PaymentException;
@@ -24,6 +23,8 @@ abstract class AbstractDriver implements PaymentDriverInterface
      * for drivers implementing PayoutDriverInterface, via configurePayouts().
      */
     protected array $payoutConfig = [];
+
+    public function __construct(protected readonly DriverContext $ctx) {}
 
     public function configure(array $config): static
     {
@@ -57,15 +58,52 @@ abstract class AbstractDriver implements PaymentDriverInterface
      */
     protected function log(string $level, string $message, array $context = []): void
     {
-        if (! config('payments.logging.enabled', true)) {
+        if (! $this->ctx->settings->get('logging.enabled', true)) {
             return;
         }
 
         $context['provider'] = $this->getName();
         $context['sandbox'] = $this->isSandbox();
 
-        $channel = config('payments.logging.channel', 'stack');
-        Log::channel($channel)->{$level}("[Payments] {$message}", $context);
+        $this->ctx->logger->{$level}("[Payments] {$message}", $context);
+    }
+
+    /**
+     * Current time, from the injected clock.
+     */
+    protected function now(): CarbonImmutable
+    {
+        return CarbonImmutable::instance($this->ctx->clock->now());
+    }
+
+    /**
+     * Read a payments setting (e.g. "urls.return").
+     */
+    protected function setting(string $key, mixed $default = null): mixed
+    {
+        return $this->ctx->settings->get($key, $default);
+    }
+
+    /**
+     * Dispatch a framework-neutral event through PSR-14.
+     *
+     * @param  class-string  $event
+     */
+    protected function emit(string $event, mixed ...$arguments): void
+    {
+        $this->ctx->events->dispatch(new $event(...$arguments));
+    }
+
+    /**
+     * Random RFC 4122 version 4 UUID.
+     */
+    protected function uuid(): string
+    {
+        $bytes = random_bytes(16);
+        $bytes[6] = chr((ord($bytes[6]) & 0x0F) | 0x40);
+        $bytes[8] = chr((ord($bytes[8]) & 0x3F) | 0x80);
+
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
     }
 
     /**
@@ -91,7 +129,7 @@ abstract class AbstractDriver implements PaymentDriverInterface
             'data' => $data,
         ]);
 
-        $response = Http::withHeaders($headers)
+        $response = $this->ctx->http->withHeaders($headers)
             ->timeout(30)
             ->{strtolower($method)}($url, $data);
 

@@ -30,4 +30,15 @@ final class InMemoryTransactionRepository implements TransactionRepositoryInterf
     {
         return $this->records[$id] ?? null;
     }
+
+    public function findByProviderTransactionId(string $providerTransactionId): ?TransactionRecord
+    {
+        foreach ($this->records as $record) {
+            if ((string) $record->getAttribute('provider_transaction_id') === $providerTransactionId) {
+                return $record;
+            }
+        }
+
+        return null;
+    }
 }

@@ -14,4 +14,6 @@ interface TransactionRepositoryInterface
     public function create(array $attributes): TransactionRecord;
 
     public function find(int|string $id): ?TransactionRecord;
+
+    public function findByProviderTransactionId(string $providerTransactionId): ?TransactionRecord;
 }

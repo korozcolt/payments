@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments\Contracts;
 
-use Illuminate\Http\Request;
+use Korbytes\Payments\Contracts\Records\SubscriptionRecord;
+use Korbytes\Payments\Contracts\Records\TransactionRecord;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
 use Korbytes\Payments\DTOs\PlanData;
@@ -13,8 +14,6 @@ use Korbytes\Payments\DTOs\RefundResult;
 use Korbytes\Payments\DTOs\SubscriptionData;
 use Korbytes\Payments\DTOs\SubscriptionResult;
 use Korbytes\Payments\DTOs\WebhookResult;
-use Korbytes\Payments\Models\PaymentTransaction;
-use Korbytes\Payments\Models\Subscription;
 
 /**
  * Contract for payment drivers.
@@ -54,7 +53,7 @@ interface PaymentDriverInterface
      *
      * @throws \Korbytes\Payments\Exceptions\InvalidWebhookSignatureException
      */
-    public function verifyWebhookSignature(Request $request): bool;
+    public function verifyWebhookSignature(object $request): bool;
 
     /**
      * Process the webhook payload.
@@ -65,7 +64,7 @@ interface PaymentDriverInterface
      * 3. Update the transaction status
      * 4. Return the result
      */
-    public function processWebhook(Request $request): WebhookResult;
+    public function processWebhook(object $request): WebhookResult;
 
     /**
      * Query the payment status directly from the provider's API.
@@ -85,7 +84,7 @@ interface PaymentDriverInterface
      *
      * @param  int|null  $amountInCents  Partial refund amount; null refunds the full transaction amount.
      */
-    public function refund(PaymentTransaction $transaction, ?int $amountInCents = null): RefundResult;
+    public function refund(TransactionRecord $transaction, ?int $amountInCents = null): RefundResult;
 
     /**
      * Create a recurring billing plan.
@@ -105,7 +104,7 @@ interface PaymentDriverInterface
     /**
      * Cancel an active subscription.
      */
-    public function cancelSubscription(Subscription $subscription): SubscriptionResult;
+    public function cancelSubscription(SubscriptionRecord $subscription): SubscriptionResult;
 
     /**
      * Charge one billing cycle for a subscription.
@@ -120,7 +119,7 @@ interface PaymentDriverInterface
      * `payments:process-subscriptions` command calls to actually bill each
      * due cycle.
      */
-    public function chargeSubscriptionCycle(Subscription $subscription): PaymentResult;
+    public function chargeSubscriptionCycle(SubscriptionRecord $subscription): PaymentResult;
 
     /**
      * Check if this driver is properly configured and ready to process payments.

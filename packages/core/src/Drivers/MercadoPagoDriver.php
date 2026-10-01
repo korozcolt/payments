@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments\Drivers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Korbytes\Payments\Contracts\Records\SubscriptionRecord;
+use Korbytes\Payments\Contracts\Records\TransactionRecord;
+use Korbytes\Payments\Http\WebhookRequest;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
 use Korbytes\Payments\DTOs\PlanData;
@@ -19,19 +19,16 @@ use Korbytes\Payments\Enums\BillingInterval;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Enums\PaymentStatus;
 use Korbytes\Payments\Enums\SubscriptionStatus;
-use Korbytes\Payments\Events\PaymentApproved;
-use Korbytes\Payments\Events\PaymentCreated;
-use Korbytes\Payments\Events\PaymentRefunded;
-use Korbytes\Payments\Events\PaymentRejected;
-use Korbytes\Payments\Events\SubscriptionCancelled;
-use Korbytes\Payments\Events\SubscriptionChargeFailed;
-use Korbytes\Payments\Events\SubscriptionChargeSucceeded;
-use Korbytes\Payments\Events\SubscriptionCreated;
-use Korbytes\Payments\Events\WebhookReceived;
+use Korbytes\Payments\Core\Events\PaymentApproved;
+use Korbytes\Payments\Core\Events\PaymentCreated;
+use Korbytes\Payments\Core\Events\PaymentRefunded;
+use Korbytes\Payments\Core\Events\PaymentRejected;
+use Korbytes\Payments\Core\Events\SubscriptionCancelled;
+use Korbytes\Payments\Core\Events\SubscriptionChargeFailed;
+use Korbytes\Payments\Core\Events\SubscriptionChargeSucceeded;
+use Korbytes\Payments\Core\Events\SubscriptionCreated;
+use Korbytes\Payments\Core\Events\WebhookReceived;
 use Korbytes\Payments\Exceptions\InvalidWebhookSignatureException;
-use Korbytes\Payments\Models\PaymentTransaction;
-use Korbytes\Payments\Models\Subscription;
-use Korbytes\Payments\Models\SubscriptionPlan;
 use MercadoPago\Client\Payment\PaymentClient;
 use MercadoPago\Client\Payment\PaymentRefundClient;
 use MercadoPago\Client\PreApproval\PreApprovalClient;
@@ -92,22 +89,22 @@ class MercadoPagoDriver extends AbstractDriver
         $this->configureSdk();
 
         // Create transaction record
-        $transaction = DB::transaction(function () use ($paymentData) {
-            return PaymentTransaction::create([
+        $transaction = $this->ctx->runner->run(function () use ($paymentData) {
+            return $this->ctx->transactions->create([
                 'reference_id' => $paymentData->referenceId,
                 'provider' => PaymentProvider::MercadoPago,
                 'amount' => $paymentData->amount,
                 'currency' => $paymentData->currency,
                 'status' => PaymentStatus::Pending,
-                'idempotency_key' => (string) Str::uuid(),
+                'idempotency_key' => $this->uuid(),
                 'metadata' => $paymentData->metadata,
-                'initiated_at' => now(),
+                'initiated_at' => $this->now(),
             ]);
         });
 
         $reference = $this->generateReference($paymentData->referenceId, $transaction->id);
-        $redirectUrl = $paymentData->returnUrl ?? config('payments.urls.return');
-        $webhookUrl = $paymentData->webhookUrl ?? config('payments.urls.webhook');
+        $redirectUrl = $paymentData->returnUrl ?? $this->setting('urls.return');
+        $webhookUrl = $paymentData->webhookUrl ?? $this->setting('urls.webhook');
 
         // Create MercadoPago Preference
         $preferenceClient = new PreferenceClient;
@@ -126,7 +123,7 @@ class MercadoPagoDriver extends AbstractDriver
             'auto_return' => 'approved',
             'external_reference' => $reference,
             'notification_url' => $webhookUrl,
-            'statement_descriptor' => config('app.name'),
+            'statement_descriptor' => $this->setting('statement_descriptor'),
         ];
 
         try {
@@ -162,7 +159,7 @@ class MercadoPagoDriver extends AbstractDriver
                 ],
             );
 
-            PaymentCreated::dispatch($transaction->fresh(), $result);
+            $this->emit(PaymentCreated::class, $transaction->fresh(), $result);
 
             return $result;
 
@@ -179,8 +176,10 @@ class MercadoPagoDriver extends AbstractDriver
         }
     }
 
-    public function verifyWebhookSignature(Request $request): bool
+    public function verifyWebhookSignature(object $request): bool
     {
+        $request = WebhookRequest::from($request);
+
         $this->log('debug', 'Verifying webhook signature');
 
         $xSignature = $request->header('x-signature');
@@ -235,8 +234,10 @@ class MercadoPagoDriver extends AbstractDriver
         return true;
     }
 
-    public function processWebhook(Request $request): WebhookResult
+    public function processWebhook(object $request): WebhookResult
     {
+        $request = WebhookRequest::from($request);
+
         $payload = $request->all();
 
         $this->log('info', 'Processing webhook', [
@@ -260,7 +261,7 @@ class MercadoPagoDriver extends AbstractDriver
                 rawPayload: $payload,
             );
 
-            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::MercadoPago, $result, $payload);
 
             return $result;
         }
@@ -275,7 +276,7 @@ class MercadoPagoDriver extends AbstractDriver
                 rawPayload: $payload,
             );
 
-            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::MercadoPago, $result, $payload);
 
             return $result;
         }
@@ -298,7 +299,7 @@ class MercadoPagoDriver extends AbstractDriver
                 rawPayload: $payload,
             );
 
-            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::MercadoPago, $result, $payload);
 
             return $result;
         }
@@ -315,7 +316,7 @@ class MercadoPagoDriver extends AbstractDriver
                 rawPayload: $payload,
             );
 
-            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::MercadoPago, $result, $payload);
 
             return $result;
         }
@@ -329,7 +330,7 @@ class MercadoPagoDriver extends AbstractDriver
 
             $result = WebhookResult::notFound($reference, $payload);
 
-            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::MercadoPago, $result, $payload);
 
             return $result;
         }
@@ -341,7 +342,7 @@ class MercadoPagoDriver extends AbstractDriver
 
             $result = WebhookResult::duplicate($transaction, $payload);
 
-            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::MercadoPago, $result, $payload);
 
             return $result;
         }
@@ -349,14 +350,14 @@ class MercadoPagoDriver extends AbstractDriver
         $mpStatus = $payment->status ?? 'pending';
         $status = self::STATUS_MAP[$mpStatus] ?? PaymentStatus::Pending;
 
-        DB::transaction(function () use ($transaction, $status, $payment, $payload) {
+        $this->ctx->runner->run(function () use ($transaction, $status, $payment, $payload) {
             $transaction->update([
                 'status' => $status,
                 'provider_transaction_id' => (string) $payment->id,
                 'webhook_payload' => $payload,
-                'webhook_received_at' => now(),
+                'webhook_received_at' => $this->now(),
                 'webhook_attempts' => $transaction->webhook_attempts + 1,
-                'completed_at' => $status->isFinal() ? now() : null,
+                'completed_at' => $status->isFinal() ? $this->now() : null,
             ]);
         });
 
@@ -372,12 +373,12 @@ class MercadoPagoDriver extends AbstractDriver
             rawPayload: $payload,
         );
 
-        WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+        $this->emit(WebhookReceived::class, PaymentProvider::MercadoPago, $result, $payload);
 
         if ($status === PaymentStatus::Approved) {
-            PaymentApproved::dispatch($transaction->fresh(), $result);
+            $this->emit(PaymentApproved::class, $transaction->fresh(), $result);
         } elseif (in_array($status, [PaymentStatus::Rejected, PaymentStatus::Voided, PaymentStatus::Refunded])) {
-            PaymentRejected::dispatch($transaction->fresh(), $result);
+            $this->emit(PaymentRejected::class, $transaction->fresh(), $result);
         }
 
         return $result;
@@ -389,7 +390,7 @@ class MercadoPagoDriver extends AbstractDriver
             'transaction_id' => $transactionId,
         ]);
 
-        $transaction = PaymentTransaction::find($transactionId);
+        $transaction = $this->ctx->transactions->find($transactionId);
 
         if (! $transaction) {
             return WebhookResult::failed(
@@ -424,11 +425,11 @@ class MercadoPagoDriver extends AbstractDriver
                         'status' => $payment->status,
                         'status_detail' => $payment->status_detail ?? null,
                     ],
-                    'completed_at' => $status->isFinal() ? now() : null,
+                    'completed_at' => $status->isFinal() ? $this->now() : null,
                 ]);
 
                 if ($status === PaymentStatus::Approved) {
-                    PaymentApproved::dispatch($transaction->fresh(), WebhookResult::success(
+                    $this->emit(PaymentApproved::class, $transaction->fresh(), WebhookResult::success(
                         transaction: $transaction->fresh(),
                         status: $status,
                         providerTransactionId: (string) $payment->id,
@@ -468,7 +469,7 @@ class MercadoPagoDriver extends AbstractDriver
      *
      * @see https://www.mercadopago.com.co/developers/es/reference/online-payments/checkout-api/refund-order/post
      */
-    public function refund(PaymentTransaction $transaction, ?int $amountInCents = null): RefundResult
+    public function refund(TransactionRecord $transaction, ?int $amountInCents = null): RefundResult
     {
         if ($transaction->status !== PaymentStatus::Approved) {
             return RefundResult::failed(
@@ -505,7 +506,7 @@ class MercadoPagoDriver extends AbstractDriver
             $transaction->update([
                 'status' => PaymentStatus::Refunded,
                 'refunded_amount' => $refundedAmountInCents,
-                'refunded_at' => now(),
+                'refunded_at' => $this->now(),
                 'provider_refund_id' => (string) $refund->id,
             ]);
 
@@ -520,7 +521,7 @@ class MercadoPagoDriver extends AbstractDriver
                 providerRefundId: (string) $refund->id,
             );
 
-            PaymentRefunded::dispatch($transaction->fresh(), $result);
+            $this->emit(PaymentRefunded::class, $transaction->fresh(), $result);
 
             return $result;
 
@@ -554,7 +555,7 @@ class MercadoPagoDriver extends AbstractDriver
             $mpPlan = $planClient->create([
                 'reason' => $data->name,
                 'auto_recurring' => $this->toAutoRecurring($data->interval, $data->intervalCount, $data->amount, $data->currency, $data->trialDays),
-                'back_url' => config('payments.urls.return'),
+                'back_url' => $this->setting('urls.return'),
             ]);
         } catch (\Exception $e) {
             $this->log('error', 'Failed to create subscription plan', ['error' => $e->getMessage()]);
@@ -562,7 +563,7 @@ class MercadoPagoDriver extends AbstractDriver
             return PlanResult::failed(null, 'API_ERROR', $e->getMessage());
         }
 
-        $plan = SubscriptionPlan::create([
+        $plan = $this->ctx->subscriptions->createPlan([
             'provider' => PaymentProvider::MercadoPago,
             'provider_plan_id' => $mpPlan->id,
             'name' => $data->name,
@@ -601,7 +602,7 @@ class MercadoPagoDriver extends AbstractDriver
                 'payer_email' => $data->getCustomerEmail(),
                 'card_token_id' => $data->paymentToken,
                 'external_reference' => $data->referenceId,
-                'back_url' => config('payments.urls.return'),
+                'back_url' => $this->setting('urls.return'),
                 'status' => 'authorized',
             ]);
         } catch (\Exception $e) {
@@ -610,7 +611,7 @@ class MercadoPagoDriver extends AbstractDriver
             return SubscriptionResult::failed(null, 'API_ERROR', $e->getMessage());
         }
 
-        $subscription = Subscription::create([
+        $subscription = $this->ctx->subscriptions->create([
             'subscription_plan_id' => $data->plan->id,
             'reference_id' => $data->referenceId,
             'provider' => PaymentProvider::MercadoPago,
@@ -619,20 +620,20 @@ class MercadoPagoDriver extends AbstractDriver
             'customer_name' => $data->getCustomerName(),
             'customer_phone' => $data->getCustomerPhone(),
             'status' => $this->mapPreapprovalStatus($preapproval->status),
-            'next_billing_date' => $preapproval->next_payment_date ? \Illuminate\Support\Carbon::parse($preapproval->next_payment_date) : null,
-            'started_at' => now(),
+            'next_billing_date' => $preapproval->next_payment_date ? \Carbon\Carbon::parse($preapproval->next_payment_date) : null,
+            'started_at' => $this->now(),
             'metadata' => $data->metadata,
             'provider_response' => ['id' => $preapproval->id, 'status' => $preapproval->status],
         ]);
 
         $result = SubscriptionResult::success($subscription);
 
-        SubscriptionCreated::dispatch($subscription, $result);
+        $this->emit(SubscriptionCreated::class, $subscription, $result);
 
         return $result;
     }
 
-    public function cancelSubscription(Subscription $subscription): SubscriptionResult
+    public function cancelSubscription(SubscriptionRecord $subscription): SubscriptionResult
     {
         if (! $subscription->provider_subscription_id) {
             return SubscriptionResult::failed(
@@ -655,13 +656,13 @@ class MercadoPagoDriver extends AbstractDriver
 
         $subscription->update([
             'status' => SubscriptionStatus::Cancelled,
-            'cancelled_at' => now(),
+            'cancelled_at' => $this->now(),
             'next_billing_date' => null,
         ]);
 
         $result = SubscriptionResult::success($subscription->fresh());
 
-        SubscriptionCancelled::dispatch($subscription->fresh(), $result);
+        $this->emit(SubscriptionCancelled::class, $subscription->fresh(), $result);
 
         return $result;
     }
@@ -674,7 +675,7 @@ class MercadoPagoDriver extends AbstractDriver
      * charges arrive via processWebhook()'s `subscription_authorized_payment`
      * handling instead.
      */
-    public function chargeSubscriptionCycle(Subscription $subscription): PaymentResult
+    public function chargeSubscriptionCycle(SubscriptionRecord $subscription): PaymentResult
     {
         return PaymentResult::failed(
             errorCode: 'NOT_APPLICABLE',
@@ -705,7 +706,7 @@ class MercadoPagoDriver extends AbstractDriver
                 rawPayload: $payload,
             );
 
-            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::MercadoPago, $result, $payload);
 
             return $result;
         }
@@ -723,7 +724,7 @@ class MercadoPagoDriver extends AbstractDriver
                 rawPayload: $payload,
             );
 
-            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::MercadoPago, $result, $payload);
 
             return $result;
         }
@@ -731,47 +732,47 @@ class MercadoPagoDriver extends AbstractDriver
         $preapprovalId = $payload['data']['preapproval_id'] ?? null;
 
         $subscription = $preapprovalId
-            ? Subscription::where('provider_subscription_id', $preapprovalId)->first()
-            : Subscription::where('reference_id', $payment->external_reference ?? '__none__')->first();
+            ? $this->ctx->subscriptions->findByProviderSubscriptionId((string) $preapprovalId)
+            : $this->ctx->subscriptions->findByReferenceId((string) ($payment->external_reference ?? '__none__'));
 
         if (! $subscription) {
             $result = WebhookResult::notFound((string) ($preapprovalId ?? $payment->external_reference ?? $paymentId), $payload);
 
-            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::MercadoPago, $result, $payload);
 
             return $result;
         }
 
-        $existing = PaymentTransaction::where('provider_transaction_id', (string) $payment->id)->first();
+        $existing = $this->ctx->transactions->findByProviderTransactionId((string) $payment->id);
 
         if ($existing) {
             $result = WebhookResult::duplicate($existing, $payload);
 
-            WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::MercadoPago, $result, $payload);
 
             return $result;
         }
 
         $status = self::STATUS_MAP[$payment->status ?? 'pending'] ?? PaymentStatus::Pending;
 
-        $transaction = PaymentTransaction::create([
+        $transaction = $this->ctx->transactions->create([
             'subscription_id' => $subscription->id,
-            'reference_id' => $subscription->reference_id.'-CYCLE-'.now()->format('YmdHis'),
+            'reference_id' => $subscription->reference_id.'-CYCLE-'.$this->now()->format('YmdHis'),
             'provider' => PaymentProvider::MercadoPago,
             'provider_transaction_id' => (string) $payment->id,
             'amount' => (int) round(($payment->transaction_amount ?? 0) * 100),
             'currency' => $payment->currency_id ?? $subscription->plan->currency,
             'status' => $status,
-            'idempotency_key' => (string) Str::uuid(),
+            'idempotency_key' => $this->uuid(),
             'webhook_payload' => $payload,
-            'webhook_received_at' => now(),
+            'webhook_received_at' => $this->now(),
             'webhook_attempts' => 1,
-            'initiated_at' => now(),
-            'completed_at' => $status->isFinal() ? now() : null,
+            'initiated_at' => $this->now(),
+            'completed_at' => $status->isFinal() ? $this->now() : null,
         ]);
 
         $subscription->update([
-            'last_charged_at' => now(),
+            'last_charged_at' => $this->now(),
             'failed_charge_attempts' => $status === PaymentStatus::Approved ? 0 : $subscription->failed_charge_attempts + 1,
         ]);
 
@@ -782,7 +783,7 @@ class MercadoPagoDriver extends AbstractDriver
             rawPayload: $payload,
         );
 
-        WebhookReceived::dispatch(PaymentProvider::MercadoPago, $result, $payload);
+        $this->emit(WebhookReceived::class, PaymentProvider::MercadoPago, $result, $payload);
 
         $paymentResult = PaymentResult::success(
             transaction: $transaction,
@@ -796,9 +797,9 @@ class MercadoPagoDriver extends AbstractDriver
         );
 
         if ($status === PaymentStatus::Approved) {
-            SubscriptionChargeSucceeded::dispatch($subscription->fresh(), $paymentResult);
+            $this->emit(SubscriptionChargeSucceeded::class, $subscription->fresh(), $paymentResult);
         } else {
-            SubscriptionChargeFailed::dispatch($subscription->fresh(), $paymentResult);
+            $this->emit(SubscriptionChargeFailed::class, $subscription->fresh(), $paymentResult);
         }
 
         return $result;
@@ -875,7 +876,7 @@ class MercadoPagoDriver extends AbstractDriver
             $items = [];
             foreach ($paymentData->items as $item) {
                 $items[] = [
-                    'id' => (string) ($item['id'] ?? Str::uuid()),
+                    'id' => (string) ($item['id'] ?? $this->uuid()),
                     'title' => $item['title'] ?? 'Item',
                     'description' => $item['description'] ?? null,
                     'quantity' => $item['quantity'] ?? 1,
@@ -901,12 +902,12 @@ class MercadoPagoDriver extends AbstractDriver
     /**
      * Find a transaction by its reference.
      */
-    protected function findTransactionByReference(string $reference): ?PaymentTransaction
+    protected function findTransactionByReference(string $reference): ?TransactionRecord
     {
         $parsed = $this->parseReference($reference);
 
         if ($parsed['transaction_id']) {
-            return PaymentTransaction::find($parsed['transaction_id']);
+            return $this->ctx->transactions->find($parsed['transaction_id']);
         }
 
         return null;

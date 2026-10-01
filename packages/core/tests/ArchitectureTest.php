@@ -9,7 +9,7 @@ declare(strict_types=1);
  */
 function frameworkCouplingIn(string $code): array
 {
-    $banned = ['config', 'now', 'event', 'app', 'collect'];
+    $banned = ['config', 'now', 'event', 'app', 'collect', 'data_get', 'data_set', 'optional', 'tap', 'route', 'url', 'env', 'retry', 'blank', 'filled', 'dispatch'];
     $tokens = array_values(array_filter(
         token_get_all($code),
         fn ($t) => ! (is_array($t) && in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)),

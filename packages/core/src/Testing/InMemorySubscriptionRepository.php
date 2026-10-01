@@ -42,6 +42,27 @@ final class InMemorySubscriptionRepository implements SubscriptionRepositoryInte
         return $this->subscriptions[$id] = $record;
     }
 
+    public function findByProviderSubscriptionId(string $providerSubscriptionId): ?SubscriptionRecord
+    {
+        return $this->firstWhere('provider_subscription_id', $providerSubscriptionId);
+    }
+
+    public function findByReferenceId(string $referenceId): ?SubscriptionRecord
+    {
+        return $this->firstWhere('reference_id', $referenceId);
+    }
+
+    private function firstWhere(string $attribute, string $value): ?SubscriptionRecord
+    {
+        foreach ($this->subscriptions as $subscription) {
+            if ((string) $subscription->getAttribute($attribute) === $value) {
+                return $subscription;
+            }
+        }
+
+        return null;
+    }
+
     public function due(array $providers): iterable
     {
         $now = $this->clock->now();

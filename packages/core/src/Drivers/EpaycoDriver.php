@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments\Drivers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
+use Korbytes\Payments\Contracts\Records\PayoutRecord;
+use Korbytes\Payments\Contracts\Records\SubscriptionRecord;
+use Korbytes\Payments\Contracts\Records\TransactionRecord;
+use Korbytes\Payments\Http\WebhookRequest;
 use Korbytes\Payments\Contracts\PayoutDriverInterface;
 use Korbytes\Payments\DTOs\PaymentData;
 use Korbytes\Payments\DTOs\PaymentResult;
@@ -24,15 +24,11 @@ use Korbytes\Payments\DTOs\WebhookResult;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Enums\PaymentStatus;
 use Korbytes\Payments\Enums\PayoutStatus;
-use Korbytes\Payments\Events\PaymentApproved;
-use Korbytes\Payments\Events\PaymentCreated;
-use Korbytes\Payments\Events\PaymentRejected;
-use Korbytes\Payments\Events\WebhookReceived;
+use Korbytes\Payments\Core\Events\PaymentApproved;
+use Korbytes\Payments\Core\Events\PaymentCreated;
+use Korbytes\Payments\Core\Events\PaymentRejected;
+use Korbytes\Payments\Core\Events\WebhookReceived;
 use Korbytes\Payments\Exceptions\InvalidWebhookSignatureException;
-use Korbytes\Payments\Models\PaymentTransaction;
-use Korbytes\Payments\Models\Payout;
-use Korbytes\Payments\Models\PayoutBeneficiary;
-use Korbytes\Payments\Models\Subscription;
 
 /**
  * ePayco Payment Driver Implementation.
@@ -127,22 +123,22 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
         ]);
 
         // Create transaction record
-        $transaction = DB::transaction(function () use ($paymentData) {
-            return PaymentTransaction::create([
+        $transaction = $this->ctx->runner->run(function () use ($paymentData) {
+            return $this->ctx->transactions->create([
                 'reference_id' => $paymentData->referenceId,
                 'provider' => PaymentProvider::Epayco,
                 'amount' => $paymentData->amount,
                 'currency' => $paymentData->currency,
                 'status' => PaymentStatus::Pending,
-                'idempotency_key' => (string) Str::uuid(),
+                'idempotency_key' => $this->uuid(),
                 'metadata' => $paymentData->metadata,
-                'initiated_at' => now(),
+                'initiated_at' => $this->now(),
             ]);
         });
 
         $reference = $this->generateReference($paymentData->referenceId, $transaction->id);
-        $redirectUrl = $paymentData->returnUrl ?? config('payments.urls.return');
-        $webhookUrl = $paymentData->webhookUrl ?? config('payments.urls.webhook');
+        $redirectUrl = $paymentData->returnUrl ?? $this->setting('urls.return');
+        $webhookUrl = $paymentData->webhookUrl ?? $this->setting('urls.webhook');
 
         $this->log('info', 'Payment intent created', [
             'transaction_id' => $transaction->id,
@@ -181,13 +177,15 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
             ],
         );
 
-        PaymentCreated::dispatch($transaction, $result);
+        $this->emit(PaymentCreated::class, $transaction, $result);
 
         return $result;
     }
 
-    public function verifyWebhookSignature(Request $request): bool
+    public function verifyWebhookSignature(object $request): bool
     {
+        $request = WebhookRequest::from($request);
+
         $this->log('debug', 'Verifying webhook signature');
 
         $receivedSignature = $request->input('x_signature');
@@ -240,8 +238,10 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
         return true;
     }
 
-    public function processWebhook(Request $request): WebhookResult
+    public function processWebhook(object $request): WebhookResult
     {
+        $request = WebhookRequest::from($request);
+
         $payload = $request->all();
 
         $this->log('info', 'Processing webhook', [
@@ -261,7 +261,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
         if (! $reference) {
             $transactionId = $payload['x_extra2'] ?? null;
             if ($transactionId) {
-                $transaction = PaymentTransaction::find($transactionId);
+                $transaction = $this->ctx->transactions->find($transactionId);
                 if ($transaction) {
                     $reference = $this->generateReference($transaction->reference_id, $transaction->id);
                 }
@@ -278,7 +278,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
                 rawPayload: $payload,
             );
 
-            WebhookReceived::dispatch(PaymentProvider::Epayco, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::Epayco, $result, $payload);
 
             return $result;
         }
@@ -292,7 +292,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
 
             $result = WebhookResult::notFound($reference, $payload);
 
-            WebhookReceived::dispatch(PaymentProvider::Epayco, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::Epayco, $result, $payload);
 
             return $result;
         }
@@ -312,7 +312,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
                 rawPayload: $payload,
             );
 
-            WebhookReceived::dispatch(PaymentProvider::Epayco, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::Epayco, $result, $payload);
 
             return $result;
         }
@@ -325,21 +325,21 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
 
             $result = WebhookResult::duplicate($transaction, $payload);
 
-            WebhookReceived::dispatch(PaymentProvider::Epayco, $result, $payload);
+            $this->emit(WebhookReceived::class, PaymentProvider::Epayco, $result, $payload);
 
             return $result;
         }
 
         $status = self::STATUS_MAP[$codResponse] ?? PaymentStatus::Pending;
 
-        DB::transaction(function () use ($transaction, $status, $providerTransactionId, $payload) {
+        $this->ctx->runner->run(function () use ($transaction, $status, $providerTransactionId, $payload) {
             $transaction->update([
                 'status' => $status,
                 'provider_transaction_id' => $providerTransactionId,
                 'webhook_payload' => $payload,
-                'webhook_received_at' => now(),
+                'webhook_received_at' => $this->now(),
                 'webhook_attempts' => $transaction->webhook_attempts + 1,
-                'completed_at' => $status->isFinal() ? now() : null,
+                'completed_at' => $status->isFinal() ? $this->now() : null,
             ]);
         });
 
@@ -355,12 +355,12 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
             rawPayload: $payload,
         );
 
-        WebhookReceived::dispatch(PaymentProvider::Epayco, $result, $payload);
+        $this->emit(WebhookReceived::class, PaymentProvider::Epayco, $result, $payload);
 
         if ($status === PaymentStatus::Approved) {
-            PaymentApproved::dispatch($transaction->fresh(), $result);
+            $this->emit(PaymentApproved::class, $transaction->fresh(), $result);
         } elseif (in_array($status, [PaymentStatus::Rejected, PaymentStatus::Voided, PaymentStatus::Expired])) {
-            PaymentRejected::dispatch($transaction->fresh(), $result);
+            $this->emit(PaymentRejected::class, $transaction->fresh(), $result);
         }
 
         return $result;
@@ -372,7 +372,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
             'transaction_id' => $transactionId,
         ]);
 
-        $transaction = PaymentTransaction::find($transactionId);
+        $transaction = $this->ctx->transactions->find($transactionId);
 
         if (! $transaction) {
             return WebhookResult::failed(
@@ -408,11 +408,11 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
                 $transaction->update([
                     'status' => $status,
                     'provider_response' => $response,
-                    'completed_at' => $status->isFinal() ? now() : null,
+                    'completed_at' => $status->isFinal() ? $this->now() : null,
                 ]);
 
                 if ($status === PaymentStatus::Approved) {
-                    PaymentApproved::dispatch($transaction->fresh(), WebhookResult::success(
+                    $this->emit(PaymentApproved::class, $transaction->fresh(), WebhookResult::success(
                         transaction: $transaction->fresh(),
                         status: $status,
                         providerTransactionId: $data['x_ref_payco'] ?? $transaction->provider_transaction_id,
@@ -455,7 +455,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
      *
      * @see https://docs.epayco.com/docs/api
      */
-    public function refund(PaymentTransaction $transaction, ?int $amountInCents = null): RefundResult
+    public function refund(TransactionRecord $transaction, ?int $amountInCents = null): RefundResult
     {
         $this->log('info', 'Refund requested but not supported by this driver', [
             'transaction_id' => $transaction->id,
@@ -500,14 +500,14 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
         );
     }
 
-    public function cancelSubscription(Subscription $subscription): SubscriptionResult
+    public function cancelSubscription(SubscriptionRecord $subscription): SubscriptionResult
     {
         return SubscriptionResult::notSupported(
             'ePayco subscriptions are not implemented in this package — see createPlan() for why.',
         );
     }
 
-    public function chargeSubscriptionCycle(Subscription $subscription): PaymentResult
+    public function chargeSubscriptionCycle(SubscriptionRecord $subscription): PaymentResult
     {
         return PaymentResult::failed(
             errorCode: 'SUBSCRIPTIONS_NOT_SUPPORTED',
@@ -530,7 +530,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
         $endpoint = $data->category === 'payroll' ? '/employees' : '/providers';
 
         try {
-            $response = Http::withHeaders($this->payoutHeaders())
+            $response = $this->ctx->http->withHeaders($this->payoutHeaders())
                 ->timeout(30)
                 ->post($this->getPayoutBaseUrl().$endpoint, [
                     'id_epayco' => $this->getPayoutConfig('id_epayco'),
@@ -560,7 +560,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
 
         $providerBeneficiaryId = $body['data']['id'] ?? $body['id'] ?? null;
 
-        $beneficiary = PayoutBeneficiary::create([
+        $beneficiary = $this->ctx->payouts->createBeneficiary([
             'provider' => PaymentProvider::Epayco,
             'provider_beneficiary_id' => $providerBeneficiaryId ? (string) $providerBeneficiaryId : null,
             'name' => $data->name,
@@ -598,7 +598,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
 
         $pocketType = $beneficiary->category === 'payroll' ? 'nomina' : 'proveedor';
 
-        $payout = Payout::create([
+        $payout = $this->ctx->payouts->create([
             'payout_beneficiary_id' => $beneficiary->id,
             'reference_id' => $data->referenceId,
             'provider' => PaymentProvider::Epayco,
@@ -610,7 +610,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
         ]);
 
         try {
-            $bulkResponse = Http::withHeaders($this->payoutHeaders())
+            $bulkResponse = $this->ctx->http->withHeaders($this->payoutHeaders())
                 ->timeout(30)
                 ->post($this->getPayoutBaseUrl().'/payments/bulk', [[
                     'id_epayco' => $this->getPayoutConfig('id_epayco'),
@@ -648,7 +648,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
         }
 
         try {
-            $dispersalResponse = Http::withHeaders($this->payoutHeaders())
+            $dispersalResponse = $this->ctx->http->withHeaders($this->payoutHeaders())
                 ->timeout(30)
                 ->post($this->getPayoutBaseUrl().'/payments/generatePayment', [
                     'id_epayco' => $this->getPayoutConfig('id_epayco'),
@@ -681,7 +681,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
         return PayoutResult::success($payout->fresh(), $dispersalBody);
     }
 
-    public function queryPayoutStatus(Payout $payout): PayoutResult
+    public function queryPayoutStatus(PayoutRecord $payout): PayoutResult
     {
         if (! $payout->provider_payout_id) {
             return PayoutResult::failed(
@@ -692,7 +692,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
         }
 
         try {
-            $response = Http::withHeaders($this->payoutHeaders())
+            $response = $this->ctx->http->withHeaders($this->payoutHeaders())
                 ->timeout(30)
                 ->post($this->getPayoutBaseUrl().'/payments/findone', [
                     'id_epayco' => $this->getPayoutConfig('id_epayco'),
@@ -719,7 +719,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
         $payout->update([
             'status' => $status,
             'provider_response' => $body,
-            'processed_at' => $status->isFinal() ? now() : null,
+            'processed_at' => $status->isFinal() ? $this->now() : null,
         ]);
 
         return PayoutResult::success($payout->fresh(), $body);
@@ -750,7 +750,7 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
 
     protected function payoutBearerToken(): string
     {
-        $response = Http::withHeaders(['Content-Type' => 'application/json'])
+        $response = $this->ctx->http->withHeaders(['Content-Type' => 'application/json'])
             ->timeout(30)
             ->post($this->getPayoutBaseUrl().'/login', [
                 'public_key' => $this->getPayoutConfig('public_key'),
@@ -770,12 +770,12 @@ class EpaycoDriver extends AbstractDriver implements PayoutDriverInterface
     /**
      * Find a transaction by its reference.
      */
-    protected function findTransactionByReference(string $reference): ?PaymentTransaction
+    protected function findTransactionByReference(string $reference): ?TransactionRecord
     {
         $parsed = $this->parseReference($reference);
 
         if ($parsed['transaction_id']) {
-            return PaymentTransaction::find($parsed['transaction_id']);
+            return $this->ctx->transactions->find($parsed['transaction_id']);
         }
 
         return null;

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments\Contracts;
 
+use Korbytes\Payments\Contracts\Records\PayoutRecord;
 use Korbytes\Payments\DTOs\PayoutBeneficiaryData;
 use Korbytes\Payments\DTOs\PayoutBeneficiaryResult;
 use Korbytes\Payments\DTOs\PayoutData;
 use Korbytes\Payments\DTOs\PayoutResult;
-use Korbytes\Payments\Models\Payout;
 
 /**
  * Contract for drivers that support sending money to third parties
@@ -48,5 +48,5 @@ interface PayoutDriverInterface
     /**
      * Query a payout's current status directly from the provider's API.
      */
-    public function queryPayoutStatus(Payout $payout): PayoutResult;
+    public function queryPayoutStatus(PayoutRecord $payout): PayoutResult;
 }

@@ -25,18 +25,6 @@ parameters:
 			path: packages/core/src/DTOs/PaymentData.php
 
 		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\TransactionRecord\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: packages/core/src/DTOs/PaymentResult.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\TransactionRecord\:\:\$ulid\.$#'
-			identifier: property.notFound
-			count: 1
-			path: packages/core/src/DTOs/PaymentResult.php
-
-		-
 			message: '#^Default value of the parameter \#4 \$customer \(array\{\}\) of method Korbytes\\Payments\\DTOs\\SubscriptionData\:\:__construct\(\) is incompatible with type array\{name\: string, email\: string, phone\?\: string\}\.$#'
 			identifier: parameter.defaultValue
 			count: 1
@@ -61,181 +49,79 @@ parameters:
 			path: packages/core/src/DTOs/SubscriptionData.php
 
 		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$category\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/EpaycoDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/EpaycoDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$provider_beneficiary_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/EpaycoDriver.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$currency\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/MercadoPagoDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\SubscriptionPlanRecord\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/MercadoPagoDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\SubscriptionPlanRecord\:\:\$provider_plan_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/MercadoPagoDriver.php
-
-		-
 			message: '#^Offset ''id'' on array\{id\: string, title\: string, description\?\: string, quantity\: int, unit_price\: int\} on left side of \?\? always exists and is not nullable\.$#'
 			identifier: nullCoalesce.offset
 			count: 1
-			path: src/Drivers/MercadoPagoDriver.php
+			path: packages/core/src/Drivers/MercadoPagoDriver.php
 
 		-
 			message: '#^Offset ''quantity'' on array\{id\: string, title\: string, description\?\: string, quantity\: int, unit_price\: int\} on left side of \?\? always exists and is not nullable\.$#'
 			identifier: nullCoalesce.offset
 			count: 1
-			path: src/Drivers/MercadoPagoDriver.php
+			path: packages/core/src/Drivers/MercadoPagoDriver.php
 
 		-
 			message: '#^Offset ''title'' on array\{id\: string, title\: string, description\?\: string, quantity\: int, unit_price\: int\} on left side of \?\? always exists and is not nullable\.$#'
 			identifier: nullCoalesce.offset
 			count: 1
-			path: src/Drivers/MercadoPagoDriver.php
+			path: packages/core/src/Drivers/MercadoPagoDriver.php
 
 		-
 			message: '#^Offset ''unit_price'' on array\{id\: string, title\: string, description\?\: string, quantity\: int, unit_price\: int\} on left side of \?\? always exists and is not nullable\.$#'
 			identifier: nullCoalesce.offset
 			count: 1
-			path: src/Drivers/MercadoPagoDriver.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$amount\.$#'
-			identifier: property.notFound
-			count: 3
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$currency\.$#'
-			identifier: property.notFound
-			count: 3
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$interval\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$interval_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$account_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$account_type\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$bank_code\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$category\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$email\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$legal_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$legal_id_type\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$person_type\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$phone\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\SubscriptionPlanRecord\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\SubscriptionPlanRecord\:\:\$interval\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\SubscriptionPlanRecord\:\:\$interval_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Drivers/WompiDriver.php
-
-		-
-			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\TransactionRecord\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: src/Http/Controllers/WebhookController.php
+			path: packages/core/src/Drivers/MercadoPagoDriver.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:active\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: src/Models/Subscription.php
+
+		-
+			message: '#^Parameter \#1 \$subscription of class Korbytes\\Payments\\Events\\SubscriptionCancelled constructor expects Korbytes\\Payments\\Models\\Subscription, Korbytes\\Payments\\Contracts\\Records\\SubscriptionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$subscription of class Korbytes\\Payments\\Events\\SubscriptionChargeFailed constructor expects Korbytes\\Payments\\Models\\Subscription, Korbytes\\Payments\\Contracts\\Records\\SubscriptionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$subscription of class Korbytes\\Payments\\Events\\SubscriptionChargeSucceeded constructor expects Korbytes\\Payments\\Models\\Subscription, Korbytes\\Payments\\Contracts\\Records\\SubscriptionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$subscription of class Korbytes\\Payments\\Events\\SubscriptionCreated constructor expects Korbytes\\Payments\\Models\\Subscription, Korbytes\\Payments\\Contracts\\Records\\SubscriptionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$transaction of class Korbytes\\Payments\\Events\\PaymentApproved constructor expects Korbytes\\Payments\\Models\\PaymentTransaction, Korbytes\\Payments\\Contracts\\Records\\TransactionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$transaction of class Korbytes\\Payments\\Events\\PaymentCreated constructor expects Korbytes\\Payments\\Models\\PaymentTransaction, Korbytes\\Payments\\Contracts\\Records\\TransactionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$transaction of class Korbytes\\Payments\\Events\\PaymentRefunded constructor expects Korbytes\\Payments\\Models\\PaymentTransaction, Korbytes\\Payments\\Contracts\\Records\\TransactionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$transaction of class Korbytes\\Payments\\Events\\PaymentRejected constructor expects Korbytes\\Payments\\Models\\PaymentTransaction, Korbytes\\Payments\\Contracts\\Records\\TransactionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
