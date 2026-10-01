@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments;
 
-use GuzzleHttp\Psr7\HttpFactory;
 use Illuminate\Support\ServiceProvider;
 use Korbytes\Payments\Console\Commands\ProcessDueSubscriptionsCommand;
 use Korbytes\Payments\Core\SubscriptionScheduler;
@@ -19,6 +18,7 @@ use Korbytes\Payments\Support\LaravelEventBridge;
 use Korbytes\Payments\Support\LaravelHttpClient;
 use Korbytes\Payments\Support\LaravelLogger;
 use Korbytes\Payments\Support\LaravelTransactionRunner;
+use Korbytes\Payments\Support\PsrFactory;
 use Korbytes\Payments\Support\SystemClock;
 
 class PaymentsServiceProvider extends ServiceProvider
@@ -35,7 +35,7 @@ class PaymentsServiceProvider extends ServiceProvider
 
         // Wires the framework-agnostic core (packages/core) to Laravel.
         $this->app->singleton(DriverContext::class, function () {
-            $factory = new HttpFactory;
+            $factory = new PsrFactory;
 
             return new DriverContext(
                 http: new HttpClient(new LaravelHttpClient, $factory, $factory),

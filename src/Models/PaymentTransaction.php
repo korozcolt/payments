@@ -70,24 +70,26 @@ class PaymentTransaction extends Model implements TransactionRecord
         'refunded_at',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'provider' => PaymentProvider::class,
-            'amount' => 'integer',
-            'refunded_amount' => 'integer',
-            'status' => PaymentStatus::class,
-            'webhook_received_at' => 'datetime',
-            'webhook_attempts' => 'integer',
-            'provider_request' => 'array',
-            'provider_response' => 'array',
-            'webhook_payload' => 'array',
-            'metadata' => 'array',
-            'initiated_at' => 'datetime',
-            'completed_at' => 'datetime',
-            'refunded_at' => 'datetime',
-        ];
-    }
+    /**
+     * Attribute casts. A property (not the Laravel 11+ casts() method) so it works on Laravel 10 too.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'provider' => PaymentProvider::class,
+        'amount' => 'integer',
+        'refunded_amount' => 'integer',
+        'status' => PaymentStatus::class,
+        'webhook_received_at' => 'datetime',
+        'webhook_attempts' => 'integer',
+        'provider_request' => 'array',
+        'provider_response' => 'array',
+        'webhook_payload' => 'array',
+        'metadata' => 'array',
+        'initiated_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'refunded_at' => 'datetime',
+    ];
 
     protected static function booted(): void
     {

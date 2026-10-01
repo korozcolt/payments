@@ -49,13 +49,15 @@ class PayoutBeneficiary extends Model implements PayoutBeneficiaryRecord
         'metadata',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'provider' => PaymentProvider::class,
-            'metadata' => 'array',
-        ];
-    }
+    /**
+     * Attribute casts. A property (not the Laravel 11+ casts() method) so it works on Laravel 10 too.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'provider' => PaymentProvider::class,
+        'metadata' => 'array',
+    ];
 
     protected static function booted(): void
     {

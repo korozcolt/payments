@@ -1,0 +1,88 @@
+{
+    "name": "korozcolt/payments",
+    "description": "A payment gateway package for Laravel supporting Wompi, MercadoPago, and ePayco. Designed for Colombian and Latin American markets.",
+    "keywords": [
+        "laravel",
+        "payments",
+        "payment-gateway",
+        "wompi",
+        "mercadopago",
+        "epayco",
+        "colombia",
+        "pse",
+        "checkout"
+    ],
+    "license": "MIT",
+    "type": "library",
+    "homepage": "https://github.com/korozcolt/payments",
+    "support": {
+        "issues": "https://github.com/korozcolt/payments/issues",
+        "source": "https://github.com/korozcolt/payments"
+    },
+    "authors": [
+        {
+            "name": "Korozcolt",
+            "email": "dev@korozcolt.com",
+            "homepage": "https://github.com/korozcolt"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/contracts": "^10.0|^11.0|^12.0|^13.0",
+        "illuminate/database": "^10.0|^11.0|^12.0|^13.0",
+        "illuminate/http": "^10.0|^11.0|^12.0|^13.0",
+        "illuminate/routing": "^10.0|^11.0|^12.0|^13.0",
+        "illuminate/support": "^10.0|^11.0|^12.0|^13.0",
+        "korozcolt/payments-core": "@dev",
+        "mercadopago/dx-php": "^3.0"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.12",
+        "laravel/pint": "^1.0",
+        "orchestra/testbench": "^8.0|^9.0|^10.0|^11.0",
+        "pestphp/pest": "^2.0|^3.0",
+        "pestphp/pest-plugin-laravel": "^2.0|^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Korbytes\\Payments\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Korbytes\\Payments\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "test-coverage": "pest --coverage",
+        "format": "pint",
+        "analyse": "phpstan analyse"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Korbytes\\Payments\\PaymentsServiceProvider"
+            ],
+            "aliases": {
+                "Payments": "Korbytes\\Payments\\Facades\\Payments"
+            }
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "repositories": [{
+        "name": "core",
+        "type": "path",
+        "url": "packages/core",
+        "options": {
+            "symlink": true
+        }
+    }]
+}

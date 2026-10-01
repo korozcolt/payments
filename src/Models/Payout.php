@@ -47,17 +47,19 @@ class Payout extends Model implements PayoutRecord
         'processed_at',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'provider' => PaymentProvider::class,
-            'amount' => 'integer',
-            'status' => PayoutStatus::class,
-            'provider_response' => 'array',
-            'metadata' => 'array',
-            'processed_at' => 'datetime',
-        ];
-    }
+    /**
+     * Attribute casts. A property (not the Laravel 11+ casts() method) so it works on Laravel 10 too.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'provider' => PaymentProvider::class,
+        'amount' => 'integer',
+        'status' => PayoutStatus::class,
+        'provider_response' => 'array',
+        'metadata' => 'array',
+        'processed_at' => 'datetime',
+    ];
 
     protected static function booted(): void
     {

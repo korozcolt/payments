@@ -1,0 +1,133 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Instanceof between Korbytes\\Payments\\Enums\\PaymentProvider and Korbytes\\Payments\\Enums\\PaymentProvider will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: packages/core/src/Core/SubscriptionScheduler.php
+
+		-
+			message: '#^Default value of the parameter \#4 \$customer \(array\{\}\) of method Korbytes\\Payments\\DTOs\\PaymentData\:\:__construct\(\) is incompatible with type array\{name\: string, email\: string, phone\?\: string\}\.$#'
+			identifier: parameter.defaultValue
+			count: 1
+			path: packages/core/src/DTOs/PaymentData.php
+
+		-
+			message: '#^Method Korbytes\\Payments\\DTOs\\PaymentData\:\:getCustomerEmail\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: packages/core/src/DTOs/PaymentData.php
+
+		-
+			message: '#^Method Korbytes\\Payments\\DTOs\\PaymentData\:\:getCustomerName\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: packages/core/src/DTOs/PaymentData.php
+
+		-
+			message: '#^Property Korbytes\\Payments\\DTOs\\PaymentData\:\:\$customer on left side of \?\? is not nullable nor uninitialized\.$#'
+			identifier: nullCoalesce.initializedProperty
+			count: 2
+			path: packages/core/src/DTOs/PaymentData.php
+
+		-
+			message: '#^Default value of the parameter \#4 \$customer \(array\{\}\) of method Korbytes\\Payments\\DTOs\\SubscriptionData\:\:__construct\(\) is incompatible with type array\{name\: string, email\: string, phone\?\: string\}\.$#'
+			identifier: parameter.defaultValue
+			count: 1
+			path: packages/core/src/DTOs/SubscriptionData.php
+
+		-
+			message: '#^Method Korbytes\\Payments\\DTOs\\SubscriptionData\:\:getCustomerEmail\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: packages/core/src/DTOs/SubscriptionData.php
+
+		-
+			message: '#^Method Korbytes\\Payments\\DTOs\\SubscriptionData\:\:getCustomerName\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: packages/core/src/DTOs/SubscriptionData.php
+
+		-
+			message: '#^Property Korbytes\\Payments\\DTOs\\SubscriptionData\:\:\$customer on left side of \?\? is not nullable nor uninitialized\.$#'
+			identifier: nullCoalesce.initializedProperty
+			count: 2
+			path: packages/core/src/DTOs/SubscriptionData.php
+
+		-
+			message: '#^Offset ''id'' on array\{id\: string, title\: string, description\?\: string, quantity\: int, unit_price\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: packages/core/src/Drivers/MercadoPagoDriver.php
+
+		-
+			message: '#^Offset ''quantity'' on array\{id\: string, title\: string, description\?\: string, quantity\: int, unit_price\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: packages/core/src/Drivers/MercadoPagoDriver.php
+
+		-
+			message: '#^Offset ''title'' on array\{id\: string, title\: string, description\?\: string, quantity\: int, unit_price\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: packages/core/src/Drivers/MercadoPagoDriver.php
+
+		-
+			message: '#^Offset ''unit_price'' on array\{id\: string, title\: string, description\?\: string, quantity\: int, unit_price\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: packages/core/src/Drivers/MercadoPagoDriver.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Models/Subscription.php
+
+		-
+			message: '#^Parameter \#1 \$subscription of class Korbytes\\Payments\\Events\\SubscriptionCancelled constructor expects Korbytes\\Payments\\Models\\Subscription, Korbytes\\Payments\\Contracts\\Records\\SubscriptionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$subscription of class Korbytes\\Payments\\Events\\SubscriptionChargeFailed constructor expects Korbytes\\Payments\\Models\\Subscription, Korbytes\\Payments\\Contracts\\Records\\SubscriptionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$subscription of class Korbytes\\Payments\\Events\\SubscriptionChargeSucceeded constructor expects Korbytes\\Payments\\Models\\Subscription, Korbytes\\Payments\\Contracts\\Records\\SubscriptionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$subscription of class Korbytes\\Payments\\Events\\SubscriptionCreated constructor expects Korbytes\\Payments\\Models\\Subscription, Korbytes\\Payments\\Contracts\\Records\\SubscriptionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$transaction of class Korbytes\\Payments\\Events\\PaymentApproved constructor expects Korbytes\\Payments\\Models\\PaymentTransaction, Korbytes\\Payments\\Contracts\\Records\\TransactionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$transaction of class Korbytes\\Payments\\Events\\PaymentCreated constructor expects Korbytes\\Payments\\Models\\PaymentTransaction, Korbytes\\Payments\\Contracts\\Records\\TransactionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$transaction of class Korbytes\\Payments\\Events\\PaymentRefunded constructor expects Korbytes\\Payments\\Models\\PaymentTransaction, Korbytes\\Payments\\Contracts\\Records\\TransactionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php
+
+		-
+			message: '#^Parameter \#1 \$transaction of class Korbytes\\Payments\\Events\\PaymentRejected constructor expects Korbytes\\Payments\\Models\\PaymentTransaction, Korbytes\\Payments\\Contracts\\Records\\TransactionRecord given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Support/LaravelEventBridge.php

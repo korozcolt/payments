@@ -1,0 +1,200 @@
+<?php
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | Default Payment Driver
+    |--------------------------------------------------------------------------
+    |
+    | This option controls the default payment driver that will be used when
+    | calling Payments::charge() without specifying a driver explicitly.
+    |
+    */
+    'default' => env('PAYMENTS_DEFAULT', 'wompi'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Enabled Drivers
+    |--------------------------------------------------------------------------
+    |
+    | This option controls which payment drivers are enabled in your application.
+    | If a driver is not in this list, attempting to use it will throw an exception.
+    | Set to empty array or null to enable all drivers.
+    |
+    */
+    'enabled' => env('PAYMENTS_ENABLED') ? explode(',', env('PAYMENTS_ENABLED')) : ['wompi', 'mercadopago', 'epayco'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Use Database Configuration
+    |--------------------------------------------------------------------------
+    |
+    | When true, driver credentials are loaded from the payment_gateways table.
+    | When false, credentials are loaded from this config file (env-based).
+    |
+    */
+    'use_database' => env('PAYMENTS_USE_DATABASE', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Webhook Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for the webhook endpoints that receive payment notifications
+    | from the payment providers.
+    |
+    */
+    'webhooks' => [
+        'prefix' => env('PAYMENTS_WEBHOOK_PREFIX', 'payments/webhooks'),
+        'middleware' => ['api'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Routes Configuration
+    |--------------------------------------------------------------------------
+    */
+    'routes' => [
+        'enabled' => true,
+        'prefix' => env('PAYMENTS_ROUTES_PREFIX', 'payments'),
+        'middleware' => ['web'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | URLs
+    |--------------------------------------------------------------------------
+    |
+    | Default URLs for redirects and webhooks. These can be overridden
+    | per-transaction when creating a payment.
+    |
+    */
+    'urls' => [
+        'return' => env('PAYMENTS_RETURN_URL'),
+        'webhook' => env('PAYMENTS_WEBHOOK_URL'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Driver Configurations
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for each payment driver. These settings are used when
+    | use_database is set to false, or as fallback values.
+    |
+    */
+    'drivers' => [
+        'wompi' => [
+            'sandbox' => env('WOMPI_SANDBOX', true),
+            'public_key' => env('WOMPI_PUBLIC_KEY'),
+            'private_key' => env('WOMPI_PRIVATE_KEY'),
+            'integrity_secret' => env('WOMPI_INTEGRITY_KEY'),
+            'events_secret' => env('WOMPI_EVENTS_SECRET'),
+            'base_url' => [
+                'sandbox' => 'https://sandbox.wompi.co/v1',
+                'production' => 'https://production.wompi.co/v1',
+            ],
+            'widget_url' => 'https://checkout.wompi.co/widget.js',
+        ],
+
+        'mercadopago' => [
+            'sandbox' => env('MERCADOPAGO_SANDBOX', true),
+            'access_token' => env('MERCADOPAGO_ACCESS_TOKEN'),
+            'public_key' => env('MERCADOPAGO_PUBLIC_KEY'),
+            'webhook_secret' => env('MERCADOPAGO_WEBHOOK_SECRET'),
+            'base_url' => 'https://api.mercadopago.com',
+            'widget_url' => 'https://sdk.mercadopago.com/js/v2',
+        ],
+
+        'epayco' => [
+            'sandbox' => env('EPAYCO_SANDBOX', true),
+            'public_key' => env('EPAYCO_PUBLIC_KEY'),
+            'private_key' => env('EPAYCO_PRIVATE_KEY'),
+            'p_cust_id_cliente' => env('EPAYCO_P_CUST_ID'),
+            'p_key' => env('EPAYCO_P_KEY'),
+            'base_url' => 'https://secure.epayco.co',
+            'widget_url' => 'https://checkout.epayco.co/checkout.js',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Payouts (third-party payments)
+    |--------------------------------------------------------------------------
+    |
+    | Separate credentials from `drivers` above — payouts use entirely
+    | different API keys (and, for Wompi, require a separate "Pagos a
+    | Terceros" module activation on your merchant account). Only Wompi and
+    | ePayco support payouts in this package; MercadoPago has no payouts
+    | API at all. See USAGE.md.
+    |
+    */
+    'payouts' => [
+        'wompi' => [
+            'sandbox' => env('WOMPI_PAYOUTS_SANDBOX', true),
+            // From Wompi's Payouts dashboard — NOT the same keys as the
+            // payment gateway above.
+            'api_key' => env('WOMPI_PAYOUTS_API_KEY'),
+            'user_principal_id' => env('WOMPI_PAYOUTS_USER_PRINCIPAL_ID'),
+            // The funding account to disburse from — see GET /accounts.
+            'account_id' => env('WOMPI_PAYOUTS_ACCOUNT_ID'),
+            'base_url' => [
+                'sandbox' => 'https://api.sandbox.payouts.wompi.co/v1',
+                'production' => 'https://api.payouts.wompi.co/v1',
+            ],
+        ],
+
+        'epayco' => [
+            // ePayco's Payouts product (apiflow.epayco.io) — assumed to use
+            // the same public/private key login flow as the rest of
+            // ePayco's platform. Not independently verified — see USAGE.md
+            // before relying on this in production.
+            'public_key' => env('EPAYCO_PAYOUTS_PUBLIC_KEY'),
+            'private_key' => env('EPAYCO_PAYOUTS_PRIVATE_KEY'),
+            'id_epayco' => env('EPAYCO_PAYOUTS_ID_EPAYCO'),
+            'base_url' => 'https://apiflow.epayco.io/payouts/api/v2',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Subscriptions
+    |--------------------------------------------------------------------------
+    |
+    | `scheduled_providers` controls which providers' due subscriptions get
+    | charged by this package's `payments:process-subscriptions` command
+    | (which you must add to your own scheduler — see USAGE.md). Only list
+    | providers with NO recurring-billing engine of their own: Wompi has no
+    | such engine, so it needs this. MercadoPago bills itself automatically
+    | — do NOT add it here, or you risk double-charging customers.
+    |
+    | ePayco has no subscription support in this package at all (unverified
+    | billing behavior — see USAGE.md), so it's irrelevant here either way.
+    |
+    */
+    'subscriptions' => [
+        'scheduled_providers' => env('PAYMENTS_SUBSCRIPTIONS_SCHEDULED_PROVIDERS')
+            ? explode(',', env('PAYMENTS_SUBSCRIPTIONS_SCHEDULED_PROVIDERS'))
+            : ['wompi'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Currency
+    |--------------------------------------------------------------------------
+    */
+    'currency' => env('PAYMENTS_CURRENCY', 'COP'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Logging
+    |--------------------------------------------------------------------------
+    |
+    | Configure logging for payment operations.
+    |
+    */
+    'logging' => [
+        'enabled' => env('PAYMENTS_LOGGING_ENABLED', true),
+        'channel' => env('PAYMENTS_LOG_CHANNEL', 'stack'),
+    ],
+];
