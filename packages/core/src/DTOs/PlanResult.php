@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments\DTOs;
 
-use Korbytes\Payments\Models\SubscriptionPlan;
+use Korbytes\Payments\Contracts\Records\SubscriptionPlanRecord;
 
 /**
  * Result of creating a recurring billing plan.
@@ -13,17 +13,17 @@ final readonly class PlanResult
 {
     public function __construct(
         public bool $success,
-        public ?SubscriptionPlan $plan,
+        public ?SubscriptionPlanRecord $plan,
         public ?string $errorCode = null,
         public ?string $errorMessage = null,
     ) {}
 
-    public static function success(SubscriptionPlan $plan): self
+    public static function success(SubscriptionPlanRecord $plan): self
     {
         return new self(success: true, plan: $plan);
     }
 
-    public static function failed(?SubscriptionPlan $plan, string $errorCode, string $errorMessage): self
+    public static function failed(?SubscriptionPlanRecord $plan, string $errorCode, string $errorMessage): self
     {
         return new self(success: false, plan: $plan, errorCode: $errorCode, errorMessage: $errorMessage);
     }

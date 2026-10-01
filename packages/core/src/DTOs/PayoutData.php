@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments\DTOs;
 
-use Korbytes\Payments\Models\PayoutBeneficiary;
+use Korbytes\Payments\Contracts\Records\PayoutBeneficiaryRecord;
 
 /**
  * Input data for sending a payout to a registered beneficiary.
@@ -16,7 +16,7 @@ final readonly class PayoutData
      * @param  array<string, mixed>  $metadata
      */
     public function __construct(
-        public PayoutBeneficiary $beneficiary,
+        public PayoutBeneficiaryRecord $beneficiary,
         public string $referenceId,
         public int $amount,
         public string $currency = 'COP',

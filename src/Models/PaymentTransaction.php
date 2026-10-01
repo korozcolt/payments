@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
+use Korbytes\Payments\Contracts\Records\TransactionRecord;
 use Korbytes\Payments\Enums\PaymentProvider;
 use Korbytes\Payments\Enums\PaymentStatus;
 
@@ -40,7 +41,7 @@ use Korbytes\Payments\Enums\PaymentStatus;
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  */
-class PaymentTransaction extends Model
+class PaymentTransaction extends Model implements TransactionRecord
 {
     protected $fillable = [
         'payable_type',

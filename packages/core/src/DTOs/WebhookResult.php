@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Korbytes\Payments\DTOs;
 
 use Korbytes\Payments\Enums\PaymentStatus;
-use Korbytes\Payments\Models\PaymentTransaction;
+use Korbytes\Payments\Contracts\Records\TransactionRecord;
 
 /**
  * Data transfer object for webhook processing results.
@@ -14,7 +14,7 @@ final readonly class WebhookResult
 {
     public function __construct(
         public bool $success,
-        public ?PaymentTransaction $transaction,
+        public ?TransactionRecord $transaction,
         public ?PaymentStatus $status,
         public ?string $providerTransactionId = null,
         public ?string $providerReference = null,
@@ -24,7 +24,7 @@ final readonly class WebhookResult
     ) {}
 
     public static function success(
-        PaymentTransaction $transaction,
+        TransactionRecord $transaction,
         PaymentStatus $status,
         ?string $providerTransactionId = null,
         ?string $providerReference = null,
@@ -41,7 +41,7 @@ final readonly class WebhookResult
     }
 
     public static function failed(
-        ?PaymentTransaction $transaction,
+        ?TransactionRecord $transaction,
         string $errorCode,
         string $errorMessage,
         array $rawPayload = [],
@@ -68,12 +68,12 @@ final readonly class WebhookResult
         );
     }
 
-    public static function duplicate(PaymentTransaction $transaction, array $rawPayload = []): self
+    public static function duplicate(TransactionRecord $transaction, array $rawPayload = []): self
     {
         return new self(
             success: true,
             transaction: $transaction,
-            status: $transaction->status,
+            status: $transaction->getAttribute('status'),
             errorCode: 'DUPLICATE_WEBHOOK',
             errorMessage: 'Webhook already processed (idempotency)',
             rawPayload: $rawPayload,

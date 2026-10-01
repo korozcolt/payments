@@ -4,52 +4,94 @@ parameters:
 			message: '#^Default value of the parameter \#4 \$customer \(array\{\}\) of method Korbytes\\Payments\\DTOs\\PaymentData\:\:__construct\(\) is incompatible with type array\{name\: string, email\: string, phone\?\: string\}\.$#'
 			identifier: parameter.defaultValue
 			count: 1
-			path: src/DTOs/PaymentData.php
+			path: packages/core/src/DTOs/PaymentData.php
 
 		-
 			message: '#^Method Korbytes\\Payments\\DTOs\\PaymentData\:\:getCustomerEmail\(\) never returns null so it can be removed from the return type\.$#'
 			identifier: return.unusedType
 			count: 1
-			path: src/DTOs/PaymentData.php
+			path: packages/core/src/DTOs/PaymentData.php
 
 		-
 			message: '#^Method Korbytes\\Payments\\DTOs\\PaymentData\:\:getCustomerName\(\) never returns null so it can be removed from the return type\.$#'
 			identifier: return.unusedType
 			count: 1
-			path: src/DTOs/PaymentData.php
+			path: packages/core/src/DTOs/PaymentData.php
 
 		-
 			message: '#^Property Korbytes\\Payments\\DTOs\\PaymentData\:\:\$customer on left side of \?\? is not nullable nor uninitialized\.$#'
 			identifier: nullCoalesce.initializedProperty
 			count: 2
-			path: src/DTOs/PaymentData.php
+			path: packages/core/src/DTOs/PaymentData.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\TransactionRecord\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/core/src/DTOs/PaymentResult.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\TransactionRecord\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/core/src/DTOs/PaymentResult.php
 
 		-
 			message: '#^Default value of the parameter \#4 \$customer \(array\{\}\) of method Korbytes\\Payments\\DTOs\\SubscriptionData\:\:__construct\(\) is incompatible with type array\{name\: string, email\: string, phone\?\: string\}\.$#'
 			identifier: parameter.defaultValue
 			count: 1
-			path: src/DTOs/SubscriptionData.php
+			path: packages/core/src/DTOs/SubscriptionData.php
 
 		-
 			message: '#^Method Korbytes\\Payments\\DTOs\\SubscriptionData\:\:getCustomerEmail\(\) never returns null so it can be removed from the return type\.$#'
 			identifier: return.unusedType
 			count: 1
-			path: src/DTOs/SubscriptionData.php
+			path: packages/core/src/DTOs/SubscriptionData.php
 
 		-
 			message: '#^Method Korbytes\\Payments\\DTOs\\SubscriptionData\:\:getCustomerName\(\) never returns null so it can be removed from the return type\.$#'
 			identifier: return.unusedType
 			count: 1
-			path: src/DTOs/SubscriptionData.php
+			path: packages/core/src/DTOs/SubscriptionData.php
 
 		-
 			message: '#^Property Korbytes\\Payments\\DTOs\\SubscriptionData\:\:\$customer on left side of \?\? is not nullable nor uninitialized\.$#'
 			identifier: nullCoalesce.initializedProperty
 			count: 2
-			path: src/DTOs/SubscriptionData.php
+			path: packages/core/src/DTOs/SubscriptionData.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/EpaycoDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/EpaycoDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$provider_beneficiary_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/EpaycoDriver.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$currency\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/MercadoPagoDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\SubscriptionPlanRecord\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/MercadoPagoDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\SubscriptionPlanRecord\:\:\$provider_plan_id\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Drivers/MercadoPagoDriver.php
@@ -101,6 +143,96 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$account_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$account_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$bank_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$legal_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$legal_id_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$person_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\PayoutBeneficiaryRecord\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\SubscriptionPlanRecord\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\SubscriptionPlanRecord\:\:\$interval\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\SubscriptionPlanRecord\:\:\$interval_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Drivers/WompiDriver.php
+
+		-
+			message: '#^Access to an undefined property Korbytes\\Payments\\Contracts\\Records\\TransactionRecord\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Http/Controllers/WebhookController.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:active\(\)\.$#'

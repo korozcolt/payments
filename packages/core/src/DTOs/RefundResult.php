@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments\DTOs;
 
-use Korbytes\Payments\Models\PaymentTransaction;
+use Korbytes\Payments\Contracts\Records\TransactionRecord;
 
 /**
  * Data transfer object for refund operation results.
@@ -16,7 +16,7 @@ final readonly class RefundResult
 {
     public function __construct(
         public bool $success,
-        public ?PaymentTransaction $transaction,
+        public ?TransactionRecord $transaction,
         public ?int $refundedAmountInCents = null,
         public ?string $providerRefundId = null,
         public ?string $errorCode = null,
@@ -25,7 +25,7 @@ final readonly class RefundResult
     ) {}
 
     public static function success(
-        PaymentTransaction $transaction,
+        TransactionRecord $transaction,
         int $refundedAmountInCents,
         ?string $providerRefundId = null,
         array $rawPayload = [],
@@ -40,7 +40,7 @@ final readonly class RefundResult
     }
 
     public static function failed(
-        ?PaymentTransaction $transaction,
+        ?TransactionRecord $transaction,
         string $errorCode,
         string $errorMessage,
         array $rawPayload = [],
@@ -58,7 +58,7 @@ final readonly class RefundResult
      * The provider doesn't expose a (usable) refund API for this
      * transaction/payment method — it must be handled manually.
      */
-    public static function notSupported(?PaymentTransaction $transaction, string $reason): self
+    public static function notSupported(?TransactionRecord $transaction, string $reason): self
     {
         return new self(
             success: false,

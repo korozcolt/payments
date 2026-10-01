@@ -67,9 +67,9 @@ class ArrayRecord implements PayoutBeneficiaryRecord, PayoutRecord, Subscription
         return $this->attributes;
     }
 
-    public function __get(string $name): mixed
+    public function __get($key)
     {
-        return $this->getAttribute($name);
+        return $this->getAttribute($key);
     }
 
     public function __isset(string $name): bool

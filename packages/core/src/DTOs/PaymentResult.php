@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Korbytes\Payments\DTOs;
 
 use Korbytes\Payments\Enums\PaymentProvider;
-use Korbytes\Payments\Models\PaymentTransaction;
+use Korbytes\Payments\Contracts\Records\TransactionRecord;
 
 /**
  * Data transfer object for payment creation result.
@@ -17,7 +17,7 @@ final readonly class PaymentResult
 {
     public function __construct(
         public bool $success,
-        public ?PaymentTransaction $transaction,
+        public ?TransactionRecord $transaction,
         public ?PaymentProvider $provider,
         public ?string $widgetUrl = null,
         public ?string $publicKey = null,
@@ -35,7 +35,7 @@ final readonly class PaymentResult
      * Create a successful payment result.
      */
     public static function success(
-        PaymentTransaction $transaction,
+        TransactionRecord $transaction,
         PaymentProvider $provider,
         string $widgetUrl,
         string $publicKey,
@@ -67,7 +67,7 @@ final readonly class PaymentResult
     public static function failed(
         string $errorCode,
         string $errorMessage,
-        ?PaymentTransaction $transaction = null,
+        ?TransactionRecord $transaction = null,
     ): self {
         return new self(
             success: false,

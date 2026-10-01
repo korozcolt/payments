@@ -26,6 +26,14 @@ interface Record
     public function getAttribute($key);
 
     /**
+     * Read an attribute as a property (`$record->amount`), like Eloquent does.
+     *
+     * @param  string  $key
+     * @return mixed
+     */
+    public function __get($key);
+
+    /**
      * Persist the given attributes.
      *
      * @param  array<string, mixed>  $attributes

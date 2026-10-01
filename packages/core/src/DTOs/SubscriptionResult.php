@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments\DTOs;
 
-use Korbytes\Payments\Models\Subscription;
+use Korbytes\Payments\Contracts\Records\SubscriptionRecord;
 
 /**
  * Result of creating, cancelling, or updating a subscription.
@@ -13,19 +13,19 @@ final readonly class SubscriptionResult
 {
     public function __construct(
         public bool $success,
-        public ?Subscription $subscription,
+        public ?SubscriptionRecord $subscription,
         public ?string $errorCode = null,
         public ?string $errorMessage = null,
         public array $rawPayload = [],
     ) {}
 
-    public static function success(Subscription $subscription, array $rawPayload = []): self
+    public static function success(SubscriptionRecord $subscription, array $rawPayload = []): self
     {
         return new self(success: true, subscription: $subscription, rawPayload: $rawPayload);
     }
 
     public static function failed(
-        ?Subscription $subscription,
+        ?SubscriptionRecord $subscription,
         string $errorCode,
         string $errorMessage,
         array $rawPayload = [],

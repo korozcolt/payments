@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Korbytes\Payments\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Korbytes\Payments\Contracts\Records\SubscriptionPlanRecord;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 use Korbytes\Payments\Enums\BillingInterval;
@@ -27,7 +28,7 @@ use Korbytes\Payments\Enums\PaymentProvider;
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  */
-class SubscriptionPlan extends Model
+class SubscriptionPlan extends Model implements SubscriptionPlanRecord
 {
     protected $fillable = [
         'provider',

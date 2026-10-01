@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Korbytes\Payments\DTOs;
 
-use Korbytes\Payments\Models\SubscriptionPlan;
+use Korbytes\Payments\Contracts\Records\SubscriptionPlanRecord;
 
 /**
  * Input data for subscribing a customer to a plan.
@@ -22,7 +22,7 @@ final readonly class SubscriptionData
      * @param  array<string, mixed>  $metadata
      */
     public function __construct(
-        public SubscriptionPlan $plan,
+        public SubscriptionPlanRecord $plan,
         public string $referenceId,
         public string $paymentToken,
         public array $customer = [],
