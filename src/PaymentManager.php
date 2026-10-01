@@ -6,104 +6,23 @@ namespace Korbytes\Payments;
 
 use Illuminate\Support\Collection;
 use Korbytes\Payments\Contracts\PaymentDriverInterface;
-use Korbytes\Payments\Contracts\PayoutDriverInterface;
-use Korbytes\Payments\Drivers\EpaycoDriver;
-use Korbytes\Payments\Drivers\MercadoPagoDriver;
-use Korbytes\Payments\Drivers\WompiDriver;
-use Korbytes\Payments\DTOs\PaymentData;
-use Korbytes\Payments\DTOs\PaymentResult;
+use Korbytes\Payments\Core\PaymentManager as CorePaymentManager;
 use Korbytes\Payments\Enums\PaymentProvider;
-use Korbytes\Payments\Exceptions\DriverNotEnabledException;
 use Korbytes\Payments\Exceptions\PaymentException;
 use Korbytes\Payments\Models\PaymentGateway;
 
 /**
- * Payment Manager - Central entry point for the payments package.
+ * Payment Manager - Central entry point for the payments package (Laravel).
  *
- * Provides a unified API to interact with multiple payment providers.
+ * Thin Laravel layer over the framework-agnostic core manager: it adds
+ * database-backed credentials, Collection return types and container-resolved drivers.
  *
  * Usage:
  *   Payments::driver('wompi')->charge($paymentData);
  *   Payments::charge($paymentData); // Uses default driver
  */
-class PaymentManager
+class PaymentManager extends CorePaymentManager
 {
-    /**
-     * @var array<string, class-string<PaymentDriverInterface>>
-     */
-    protected array $drivers = [
-        'wompi' => WompiDriver::class,
-        'mercadopago' => MercadoPagoDriver::class,
-        'epayco' => EpaycoDriver::class,
-    ];
-
-    /**
-     * @var array<string, PaymentDriverInterface>
-     */
-    protected array $resolvedDrivers = [];
-
-    /**
-     * Get a payment driver instance by name.
-     *
-     * @throws DriverNotEnabledException
-     * @throws PaymentException
-     */
-    public function driver(PaymentProvider|string|null $driver = null): PaymentDriverInterface
-    {
-        $driverName = $driver instanceof PaymentProvider
-            ? $driver->value
-            : ($driver ?? config('payments.default', 'wompi'));
-
-        // Check if driver is enabled
-        $enabledDrivers = config('payments.enabled', []);
-        if (! empty($enabledDrivers) && ! in_array($driverName, $enabledDrivers)) {
-            throw new DriverNotEnabledException($driverName, $enabledDrivers);
-        }
-
-        if (isset($this->resolvedDrivers[$driverName])) {
-            return $this->resolvedDrivers[$driverName];
-        }
-
-        $config = $this->getDriverConfig($driverName);
-
-        return $this->resolvedDrivers[$driverName] = $this->createDriver($driverName, $config);
-    }
-
-    /**
-     * Shortcut to charge using the default driver.
-     */
-    public function charge(PaymentData $paymentData): PaymentResult
-    {
-        return $this->driver()->charge($paymentData);
-    }
-
-    /**
-     * Get a driver that supports payouts (third-party disbursements).
-     *
-     * Not every driver supports this — MercadoPago has no payouts API at
-     * all, for example — so this throws when the resolved driver doesn't
-     * implement PayoutDriverInterface, rather than silently returning
-     * something that would fatal-error on first use.
-     *
-     * @throws PaymentException
-     */
-    public function payoutDriver(PaymentProvider|string|null $driver = null): PayoutDriverInterface
-    {
-        $driverName = $driver instanceof PaymentProvider
-            ? $driver->value
-            : ($driver ?? config('payments.default', 'wompi'));
-
-        $resolved = $this->driver($driverName);
-
-        if (! $resolved instanceof PayoutDriverInterface) {
-            throw PaymentException::payoutsNotSupported(PaymentProvider::from($driverName));
-        }
-
-        $resolved->configurePayouts(config("payments.payouts.{$driverName}", []));
-
-        return $resolved;
-    }
-
     /**
      * Get all enabled drivers.
      *
@@ -111,9 +30,7 @@ class PaymentManager
      */
     public function enabledDrivers(): Collection
     {
-        $enabled = config('payments.enabled', array_keys($this->drivers));
-
-        return collect($enabled)
+        return collect($this->enabledDriverNames())
             ->filter(fn ($name) => isset($this->drivers[$name]))
             ->mapWithKeys(fn ($name) => [$name => $this->driver($name)]);
     }
@@ -136,59 +53,10 @@ class PaymentManager
     }
 
     /**
-     * Check if a specific driver is available and enabled.
-     */
-    public function isAvailable(PaymentProvider|string $driver): bool
-    {
-        $driverName = $driver instanceof PaymentProvider
-            ? $driver->value
-            : $driver;
-
-        $enabledDrivers = config('payments.enabled', []);
-
-        if (! empty($enabledDrivers) && ! in_array($driverName, $enabledDrivers)) {
-            return false;
-        }
-
-        try {
-            return $this->driver($driverName)->isConfigured();
-        } catch (\Exception) {
-            return false;
-        }
-    }
-
-    /**
-     * Check if any payment driver is available.
-     */
-    public function hasAvailableDriver(): bool
-    {
-        $enabledDrivers = config('payments.enabled', array_keys($this->drivers));
-
-        foreach ($enabledDrivers as $driverName) {
-            if ($this->isAvailable($driverName)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Register a custom driver.
-     *
-     * @param  class-string<PaymentDriverInterface>  $driverClass
-     */
-    public function extend(string $name, string $driverClass): void
-    {
-        $this->drivers[$name] = $driverClass;
-    }
-
-    /**
-     * Get the configuration for a driver.
+     * Get the configuration for a driver: database first, then the config file.
      */
     protected function getDriverConfig(string $driverName): array
     {
-        // First, try to get from database
         if (config('payments.use_database', true)) {
             $gateway = PaymentGateway::query()
                 ->where('provider', $driverName)
@@ -199,12 +67,12 @@ class PaymentManager
             }
         }
 
-        // Fall back to config file
-        return config("payments.drivers.{$driverName}", []);
+        return parent::getDriverConfig($driverName);
     }
 
     /**
-     * Create a driver instance with configuration.
+     * Create a driver instance with configuration, resolved through the container
+     * so custom drivers registered with extend() can use dependency injection.
      *
      * @throws PaymentException
      */

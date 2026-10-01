@@ -7,6 +7,8 @@ namespace Korbytes\Payments;
 use GuzzleHttp\Psr7\HttpFactory;
 use Illuminate\Support\ServiceProvider;
 use Korbytes\Payments\Console\Commands\ProcessDueSubscriptionsCommand;
+use Korbytes\Payments\Core\SubscriptionScheduler;
+use Korbytes\Payments\Core\WebhookHandler;
 use Korbytes\Payments\Drivers\DriverContext;
 use Korbytes\Payments\Http\HttpClient;
 use Korbytes\Payments\Support\EloquentPayoutRepository;
@@ -49,8 +51,21 @@ class PaymentsServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton('payments', function ($app) {
-            return new PaymentManager;
+            return new PaymentManager($app->make(DriverContext::class));
         });
+
+        // Resolved per use (not singletons) so a swapped 'payments' instance, such
+        // as a Payments::shouldReceive() mock in an application's tests, is honoured.
+        $this->app->bind(WebhookHandler::class, fn ($app) => new WebhookHandler(
+            $app->make('payments'),
+            new LaravelLogger,
+        ));
+
+        $this->app->bind(SubscriptionScheduler::class, fn ($app) => new SubscriptionScheduler(
+            $app->make('payments'),
+            new EloquentSubscriptionRepository,
+            new LaravelConfigProvider,
+        ));
 
         $this->app->alias('payments', PaymentManager::class);
     }

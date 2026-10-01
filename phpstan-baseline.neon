@@ -1,6 +1,12 @@
 parameters:
 	ignoreErrors:
 		-
+			message: '#^Instanceof between Korbytes\\Payments\\Enums\\PaymentProvider and Korbytes\\Payments\\Enums\\PaymentProvider will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: packages/core/src/Core/SubscriptionScheduler.php
+
+		-
 			message: '#^Default value of the parameter \#4 \$customer \(array\{\}\) of method Korbytes\\Payments\\DTOs\\PaymentData\:\:__construct\(\) is incompatible with type array\{name\: string, email\: string, phone\?\: string\}\.$#'
 			identifier: parameter.defaultValue
 			count: 1
