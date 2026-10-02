@@ -13,7 +13,12 @@ use Psr\Log\AbstractLogger;
  */
 final class LaravelLogger extends AbstractLogger
 {
-    public function log($level, string|\Stringable $message, array $context = []): void
+    /**
+     * $message stays untyped: psr/log 1.x declares it without a type, and a narrower override would fatal.
+     *
+     * @param  string|\Stringable  $message
+     */
+    public function log($level, $message, array $context = []): void
     {
         Log::channel(config('payments.logging.channel', 'stack'))->{(string) $level}((string) $message, $context);
     }
