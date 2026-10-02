@@ -6,6 +6,7 @@ namespace Korbytes\Payments\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Korbytes\Payments\Contracts\Records\SubscriptionRecord;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
@@ -37,7 +38,7 @@ use Korbytes\Payments\Enums\SubscriptionStatus;
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  */
-class Subscription extends Model
+class Subscription extends Model implements SubscriptionRecord
 {
     protected $fillable = [
         'subscription_plan_id',

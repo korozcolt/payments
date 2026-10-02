@@ -1,0 +1,13 @@
+{
+    "name": "korozcolt/payments-standalone-example",
+    "description": "Runs korozcolt/payments-core with plain PHP: Guzzle (PSR-18) + SQLite (PDO). No framework.",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "ext-pdo": "*",
+        "guzzlehttp/guzzle": "^7.5",
+        "korozcolt/payments-core": "^1.0"
+    },
+    "minimum-stability": "stable"
+}

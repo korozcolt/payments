@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-01
+
+Released together with **`korozcolt/payments-core` 1.0.0** and the adapters `payments-codeigniter4`, `payments-slim` and `payments-symfony` 1.0.0. See [#16](https://github.com/korozcolt/payments/issues/16) and `docs/plans/16-framework-agnostic-core.md`.
+
+### Added
+- **Framework-agnostic core** (`packages/core`, published as [`korozcolt/payments-core`](https://github.com/korozcolt/payments-core)): the Wompi, MercadoPago and ePayco drivers, DTOs, enums, exceptions, the manager, the webhook endpoint logic (`WebhookHandler`) and the subscription scheduler now live in a package with **no Laravel dependency** (enforced by a test and a CI job). It depends only on PSR-18/17 (HTTP), PSR-3 (logging), PSR-14 (events) and PSR-20 (clock), plus repository ports for persistence.
+- `Standalone::pdo()` wires the core for plain PHP from a PSR-18 client and a PDO connection; bundled PDO repositories and `schema.{sqlite,mysql,pgsql}.sql` use the same tables as the Laravel migrations. Runnable example in `examples/standalone`.
+- **Adapters** (monorepo packages): `korozcolt/payments-codeigniter4` (verified on a fresh `codeigniter4/appstarter`), `korozcolt/payments-slim` (PSR-15) and `korozcolt/payments-symfony` (bundle, tested with a real kernel). All answer webhooks identically (`400` unknown/unavailable provider, `401` bad signature, `200` processed, `500` unexpected error).
+- Characterization tests for the webhook HTTP contract and event payloads; phpstan (Larastan, level 5, with a baseline); GitHub Actions matrix (Laravel 10-13, core without Laravel, adapters, static analysis).
+
+### Changed
+- The Laravel package is now a thin adapter over the core: Eloquent repositories, an `Http`-facade PSR-18 client (so `Http::fake()` keeps working), a bridge that re-dispatches the core events as the existing `Korbytes\Payments\Events\*` Laravel events (listeners and queued listeners are unaffected), and a `WebhookController`/`payments:process-subscriptions` command that delegate to the core. **The public Laravel API (facade, config, models, migrations, events, route, command) is unchanged and the existing test suite passes unmodified on Laravel 10, 11, 12 and 13.**
+- `Payments::driver()` results now type Eloquent models as `TransactionRecord`/`SubscriptionRecord`/... interfaces that the models implement; at runtime `$result->transaction` is still the Eloquent model.
+- `guzzlehttp/guzzle` is now a declared dependency (Laravel 10 does not install it by default and the HTTP client needs it).
+
+### Fixed
+- Laravel 10 compatibility (found by running the suite on Laravel 10 for the first time): models now declare `$casts` as a property instead of the Laravel 11-only `casts()` method (JSON/enum attributes were not cast on Laravel 10); `down()` of the two `ALTER TABLE` migrations no longer fails on SQLite.
+
+### Upgrading from 2.0.x
+Nothing to do if you only use the facade, models, events, config and webhook route. **Only custom drivers are affected**: see [docs/UPGRADING-2.1.md](docs/UPGRADING-2.1.md).
+
 ## [2.0.2] - 2026-10-01
 
 Patch release: compatibility fixes only, no API changes.

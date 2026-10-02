@@ -13,3 +13,4 @@ Thumbs.db
 coverage/
 .coverage
 *.log
+.phpstan.cache

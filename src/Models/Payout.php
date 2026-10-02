@@ -6,6 +6,7 @@ namespace Korbytes\Payments\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Korbytes\Payments\Contracts\Records\PayoutRecord;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 use Korbytes\Payments\Enums\PaymentProvider;
@@ -30,7 +31,7 @@ use Korbytes\Payments\Enums\PayoutStatus;
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  */
-class Payout extends Model
+class Payout extends Model implements PayoutRecord
 {
     protected $fillable = [
         'payout_beneficiary_id',

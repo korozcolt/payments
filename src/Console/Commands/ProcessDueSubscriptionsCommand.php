@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Korbytes\Payments\Console\Commands;
 
 use Illuminate\Console\Command;
-use Korbytes\Payments\Facades\Payments;
-use Korbytes\Payments\Models\Subscription;
+use Korbytes\Payments\Core\SubscriptionScheduler;
 
 /**
  * Charges due subscription cycles for providers with no recurring-billing
@@ -24,40 +23,29 @@ class ProcessDueSubscriptionsCommand extends Command
 
     protected $description = 'Charge due subscription cycles for providers configured in payments.subscriptions.scheduled_providers';
 
-    public function handle(): int
+    public function handle(SubscriptionScheduler $scheduler): int
     {
-        $providers = config('payments.subscriptions.scheduled_providers', ['wompi']);
-
-        if (empty($providers)) {
+        if ($scheduler->providers() === []) {
             $this->info('No providers configured in payments.subscriptions.scheduled_providers — nothing to do.');
 
             return self::SUCCESS;
         }
 
-        $subscriptions = Subscription::due()->whereIn('provider', $providers)->get();
+        $summary = $scheduler->processDue(function ($subscription, $result) {
+            if ($result->success) {
+                $this->info("Charged subscription #{$subscription->id} ({$subscription->reference_id}).");
+            } else {
+                $this->error("Failed to charge subscription #{$subscription->id} ({$subscription->reference_id}): {$result->errorMessage}");
+            }
+        });
 
-        if ($subscriptions->isEmpty()) {
+        if ($summary['charged'] + $summary['failed'] === 0) {
             $this->info('No due subscriptions found.');
 
             return self::SUCCESS;
         }
 
-        $charged = 0;
-        $failed = 0;
-
-        foreach ($subscriptions as $subscription) {
-            $result = Payments::driver($subscription->provider->value)->chargeSubscriptionCycle($subscription);
-
-            if ($result->success) {
-                $charged++;
-                $this->info("Charged subscription #{$subscription->id} ({$subscription->reference_id}).");
-            } else {
-                $failed++;
-                $this->error("Failed to charge subscription #{$subscription->id} ({$subscription->reference_id}): {$result->errorMessage}");
-            }
-        }
-
-        $this->info("Done. Charged: {$charged}, Failed: {$failed}.");
+        $this->info("Done. Charged: {$summary['charged']}, Failed: {$summary['failed']}.");
 
         return self::SUCCESS;
     }

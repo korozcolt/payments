@@ -6,6 +6,20 @@ namespace Korbytes\Payments;
 
 use Illuminate\Support\ServiceProvider;
 use Korbytes\Payments\Console\Commands\ProcessDueSubscriptionsCommand;
+use Korbytes\Payments\Core\SubscriptionScheduler;
+use Korbytes\Payments\Core\WebhookHandler;
+use Korbytes\Payments\Drivers\DriverContext;
+use Korbytes\Payments\Http\HttpClient;
+use Korbytes\Payments\Support\EloquentPayoutRepository;
+use Korbytes\Payments\Support\EloquentSubscriptionRepository;
+use Korbytes\Payments\Support\EloquentTransactionRepository;
+use Korbytes\Payments\Support\LaravelConfigProvider;
+use Korbytes\Payments\Support\LaravelEventBridge;
+use Korbytes\Payments\Support\LaravelHttpClient;
+use Korbytes\Payments\Support\LaravelLogger;
+use Korbytes\Payments\Support\LaravelTransactionRunner;
+use Korbytes\Payments\Support\PsrFactory;
+use Korbytes\Payments\Support\SystemClock;
 
 class PaymentsServiceProvider extends ServiceProvider
 {
@@ -19,9 +33,39 @@ class PaymentsServiceProvider extends ServiceProvider
             'payments'
         );
 
-        $this->app->singleton('payments', function ($app) {
-            return new PaymentManager;
+        // Wires the framework-agnostic core (packages/core) to Laravel.
+        $this->app->singleton(DriverContext::class, function () {
+            $factory = new PsrFactory;
+
+            return new DriverContext(
+                http: new HttpClient(new LaravelHttpClient, $factory, $factory),
+                logger: new LaravelLogger,
+                settings: new LaravelConfigProvider,
+                transactions: new EloquentTransactionRepository,
+                subscriptions: new EloquentSubscriptionRepository,
+                payouts: new EloquentPayoutRepository,
+                runner: new LaravelTransactionRunner,
+                events: new LaravelEventBridge,
+                clock: new SystemClock,
+            );
         });
+
+        $this->app->singleton('payments', function ($app) {
+            return new PaymentManager($app->make(DriverContext::class));
+        });
+
+        // Resolved per use (not singletons) so a swapped 'payments' instance, such
+        // as a Payments::shouldReceive() mock in an application's tests, is honoured.
+        $this->app->bind(WebhookHandler::class, fn ($app) => new WebhookHandler(
+            $app->make('payments'),
+            new LaravelLogger,
+        ));
+
+        $this->app->bind(SubscriptionScheduler::class, fn ($app) => new SubscriptionScheduler(
+            $app->make('payments'),
+            new EloquentSubscriptionRepository,
+            new LaravelConfigProvider,
+        ));
 
         $this->app->alias('payments', PaymentManager::class);
     }
