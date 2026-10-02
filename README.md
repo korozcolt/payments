@@ -6,6 +6,20 @@
 
 A unified payment gateway package for Laravel (with a [framework-agnostic core](packages/core/README.md) for any other PHP project) supporting **Wompi**, **MercadoPago**, and **ePayco**. Designed for Colombian and Latin American markets.
 
+## Part of the `korozcolt/payments` ecosystem
+
+The gateway logic (Wompi, MercadoPago, ePayco) is written **once**, in `payments-core`, and each framework gets a thin adapter. Install the adapter for your framework; Composer pulls the core in.
+
+| Package | What it is |
+|---|---|
+| **payments** (this package) | Laravel adapter (also the monorepo) |
+| [payments-core](https://github.com/korozcolt/payments-core) | Framework-agnostic core: drivers, manager, webhooks |
+| [payments-codeigniter4](https://github.com/korozcolt/payments-codeigniter4) | CodeIgniter 4 adapter |
+| [payments-slim](https://github.com/korozcolt/payments-slim) | Slim 4 / PSR-15 adapter |
+| [payments-symfony](https://github.com/korozcolt/payments-symfony) | Symfony bundle |
+
+Why it is split this way, how the pieces relate and what is on the roadmap: **[ecosystem guide](https://github.com/korozcolt/payments/blob/master/docs/ECOSYSTEM.md)**.
+
 ## Features
 
 - **Unified API** - Single interface for multiple payment providers

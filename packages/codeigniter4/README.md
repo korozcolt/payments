@@ -5,6 +5,20 @@ Install, migrate, configure through `.env`. Everything else is auto-discovered b
 
 Verified against a fresh `codeigniter4/appstarter` (v4.7): migration, route, Spark command, `service('payments')`, signed webhook over HTTP and `Events::on()` listeners.
 
+## Part of the `korozcolt/payments` ecosystem
+
+The gateway logic (Wompi, MercadoPago, ePayco) is written **once**, in `payments-core`, and each framework gets a thin adapter. Install the adapter for your framework; Composer pulls the core in.
+
+| Package | What it is |
+|---|---|
+| [payments](https://github.com/korozcolt/payments) | Laravel adapter (also the monorepo) |
+| [payments-core](https://github.com/korozcolt/payments-core) | Framework-agnostic core: drivers, manager, webhooks |
+| **payments-codeigniter4** (this package) | CodeIgniter 4 adapter |
+| [payments-slim](https://github.com/korozcolt/payments-slim) | Slim 4 / PSR-15 adapter |
+| [payments-symfony](https://github.com/korozcolt/payments-symfony) | Symfony bundle |
+
+Why it is split this way, how the pieces relate and what is on the roadmap: **[ecosystem guide](https://github.com/korozcolt/payments/blob/master/docs/ECOSYSTEM.md)**.
+
 ## Install
 
 ```bash

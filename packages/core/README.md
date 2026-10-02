@@ -7,6 +7,20 @@ It depends only on PSR interfaces (PSR-18 HTTP client, PSR-17 factories, PSR-3 l
 - Using Laravel? Install [`korozcolt/payments`](https://github.com/korozcolt/payments) instead; it wraps this core.
 - Using something else? Read on.
 
+## Part of the `korozcolt/payments` ecosystem
+
+The gateway logic (Wompi, MercadoPago, ePayco) is written **once**, in `payments-core`, and each framework gets a thin adapter. Install the adapter for your framework; Composer pulls the core in.
+
+| Package | What it is |
+|---|---|
+| [payments](https://github.com/korozcolt/payments) | Laravel adapter (also the monorepo) |
+| **payments-core** (this package) | Framework-agnostic core: drivers, manager, webhooks |
+| [payments-codeigniter4](https://github.com/korozcolt/payments-codeigniter4) | CodeIgniter 4 adapter |
+| [payments-slim](https://github.com/korozcolt/payments-slim) | Slim 4 / PSR-15 adapter |
+| [payments-symfony](https://github.com/korozcolt/payments-symfony) | Symfony bundle |
+
+Why it is split this way, how the pieces relate and what is on the roadmap: **[ecosystem guide](https://github.com/korozcolt/payments/blob/master/docs/ECOSYSTEM.md)**.
+
 ## Quick start (plain PHP)
 
 ```bash

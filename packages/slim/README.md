@@ -6,6 +6,20 @@ Slim 4 / PSR-15 adapter for [`korozcolt/payments-core`](https://github.com/koroz
 composer require korozcolt/payments-slim korozcolt/payments-core guzzlehttp/guzzle slim/slim slim/psr7
 ```
 
+## Part of the `korozcolt/payments` ecosystem
+
+The gateway logic (Wompi, MercadoPago, ePayco) is written **once**, in `payments-core`, and each framework gets a thin adapter. Install the adapter for your framework; Composer pulls the core in.
+
+| Package | What it is |
+|---|---|
+| [payments](https://github.com/korozcolt/payments) | Laravel adapter (also the monorepo) |
+| [payments-core](https://github.com/korozcolt/payments-core) | Framework-agnostic core: drivers, manager, webhooks |
+| [payments-codeigniter4](https://github.com/korozcolt/payments-codeigniter4) | CodeIgniter 4 adapter |
+| **payments-slim** (this package) | Slim 4 / PSR-15 adapter |
+| [payments-symfony](https://github.com/korozcolt/payments-symfony) | Symfony bundle |
+
+Why it is split this way, how the pieces relate and what is on the roadmap: **[ecosystem guide](https://github.com/korozcolt/payments/blob/master/docs/ECOSYSTEM.md)**.
+
 ## Setup
 
 ```php
